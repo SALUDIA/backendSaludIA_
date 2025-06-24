@@ -12,10 +12,10 @@ if __name__ == '__main__':
     try:
         # 🚀 CONFIGURACIÓN OPTIMIZADA PARA RENDER
         port = int(os.environ.get('PORT', 5000))
-        environment = os.environ.get('FLASK_ENV', 'development')
+        environment = os.environ.get('FLASK_ENV', 'production')
         is_production = environment == 'production'
         
-        print("🚀 SaludIA Backend - Iniciando...")
+        print("🚀 SaludIA Backend - Iniciando en Render...")
         print(f"🔧 Entorno: {environment}")
         print(f"🌐 Puerto: {port}")
         
@@ -24,7 +24,7 @@ if __name__ == '__main__':
             db_config = get_db_config()
             db_host = db_config.get('host', 'unknown')
             if 'aivencloud.com' in db_host:
-                print("✅ Base de datos: Aiven MySQL (Producción)")
+                print("✅ Base de datos: Aiven MySQL conectada")
             else:
                 print(f"⚠️ Base de datos: {db_host}")
         except Exception as e:
@@ -39,11 +39,11 @@ if __name__ == '__main__':
         
         # Configuración específica para Render
         app.run(
-            debug=not is_production,
-            host='0.0.0.0',
+            debug=False,  # ← Siempre False en producción
+            host='0.0.0.0',  # ← Permite conexiones externas
             port=port,
             threaded=True,
-            use_reloader=False if is_production else True
+            use_reloader=False  # ← Evita problemas en Render
         )
         
     except Exception as e:

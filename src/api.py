@@ -1,53 +1,63 @@
-from src.api import app
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 from config.loader import get_config_instance, get_db_config
 import os
 import logging
+
+# Crear aplicación Flask
+app = Flask(__name__)
+
+# Configurar CORS
+CORS(app, resources={
+    r"/*": {
+        "origins": ["*"],
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"]
+    }
+})
 
 # Configurar logging para producción
 if os.getenv('FLASK_ENV') == 'production':
     logging.basicConfig(level=logging.INFO)
     app.logger.setLevel(logging.INFO)
 
-if __name__ == '__main__':
+# Importar rutas después de crear app
+from src.predictor import predictor_bp
+from src.database import database_bp
+
+# Registrar blueprints
+app.register_blueprint(predictor_bp)
+app.register_blueprint(database_bp)
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint"""
     try:
-        # 🚀 CONFIGURACIÓN OPTIMIZADA PARA RENDER
-        port = int(os.environ.get('PORT', 5000))
-        environment = os.environ.get('FLASK_ENV', 'production')
-        is_production = environment == 'production'
+        db_config = get_db_config()
+        db_host = db_config.get('host', 'unknown')
         
-        print("🚀 SaludIA Backend - Iniciando en Render...")
-        print(f"🔧 Entorno: {environment}")
-        print(f"🌐 Puerto: {port}")
-        
-        # Verificar configuración de BD
-        try:
-            db_config = get_db_config()
-            db_host = db_config.get('host', 'unknown')
-            if 'aivencloud.com' in db_host:
-                print("✅ Base de datos: Aiven MySQL conectada")
-            else:
-                print(f"⚠️ Base de datos: {db_host}")
-        except Exception as e:
-            print(f"⚠️ Error verificando BD: {e}")
-        
-        print("📋 API Endpoints disponibles:")
-        print("   POST /predict-friendly - Diagnóstico amigable")
-        print("   POST /predict - Diagnóstico técnico")
-        print("   POST /predict-v9 - Síntomas binarios")
-        print("   GET /health - Estado del sistema")
-        print("="*50)
-        
-        # Configuración específica para Render
-        app.run(
-            debug=False,  # ← Siempre False en producción
-            host='0.0.0.0',  # ← Permite conexiones externas
-            port=port,
-            threaded=True,
-            use_reloader=False  # ← Evita problemas en Render
-        )
-        
+        return jsonify({
+            'status': 'healthy',
+            'message': 'SaludIA API is running',
+            'database': 'Aiven MySQL' if 'aivencloud.com' in db_host else 'Local MySQL',
+            'environment': os.getenv('FLASK_ENV', 'development'),
+            'version': '1.0.0'
+        })
     except Exception as e:
-        print(f"❌ Error crítico: {e}")
-        import traceback
-        traceback.print_exc()
-        exit(1)
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+
+@app.route('/', methods=['GET'])
+def root():
+    """Root endpoint"""
+    return jsonify({
+        'message': 'SaludIA Backend API',
+        'version': '1.0.0',
+        'endpoints': {
+            'health': '/health',
+            'predict': '/predict-friendly',
+            'predict_v9': '/predict-v9'
+        }
+    })
