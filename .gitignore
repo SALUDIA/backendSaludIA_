@@ -1,0 +1,34 @@
+# Variables de entorno
+.env
+.env.local
+.env.production
+
+# Archivos Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+.coverage
+.pytest_cache/
+
+# Archivos temporales
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Modelos grandes (si son muy pesados)
+# models/*.pkl
+
+# Datos sensibles
+credentials.json
+secrets/
+credentials.txt
