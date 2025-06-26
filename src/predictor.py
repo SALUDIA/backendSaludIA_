@@ -1,343 +1,425 @@
-import joblib
+from flask import Blueprint, request, jsonify
 import pandas as pd
 import numpy as np
+import joblib
 import os
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.preprocessing import LabelEncoder
-from scipy.sparse import hstack
-import warnings
-warnings.filterwarnings('ignore')
+import logging
+from datetime import datetime
+import traceback
 
-class SaludIAPredictor:
-    """Predictor principal para modelos v7 y v8"""
+# Crear Blueprint para las rutas de predicción
+predictor_bp = Blueprint('predictor', __name__)
+
+# Variables globales para los modelos
+predictor = None
+predictor_v9 = None
+
+def find_model_files():
+    """Buscar archivos de modelo disponibles con rutas correctas"""
+    model_paths = {}
     
-    def __init__(self, model_version='v8'):
-        self.model_version = model_version  
-        self.model = None
-        self.vectorizer = None
-        self.age_encoder = None
-        self.gender_encoder = None
-        self.label_encoder = None
-        
-        # Rutas de archivos del modelo
-        base_path = os.path.join(os.path.dirname(__file__), '..', 'models')
-        
-        if model_version == 'v7':
-            self.model_files = {
-                'model': os.path.join(base_path, 'modelo_diagnostico_v7_optimizado.pkl'),
-                'preprocessors': os.path.join(base_path, 'preprocesadores_v7.pkl')
-            }
-        else:  # v8 por defecto
-            self.model_files = {
-                'model': os.path.join(base_path, 'modelo_diagnostico_v8_reentrenado.pkl'),
-                'preprocessors': os.path.join(base_path, 'preprocesadores_v8_reentrenado.pkl')
-            }
-        
-        self._load_models()
+    # 📁 RUTAS CORRECTAS basadas en tu estructura de archivos
+    base_models_dir = 'models'  # ← Desde Backend/
     
-    def _load_models(self):
-        """Cargar todos los componentes del modelo"""
-        try:
-            print(f"🔄 Cargando modelo {self.model_version}...")
-            
-            # Verificar archivos
-            missing_files = []
-            for name, path in self.model_files.items():
-                if not os.path.exists(path):
-                    missing_files.append(f"{name}: {path}")
-            
-            if missing_files:
-                print(f"❌ Archivos faltantes del modelo {self.model_version}:")
-                for file in missing_files:
-                    print(f"   - {file}")
-                return False
-            
-            # Cargar modelo
-            self.model = joblib.load(self.model_files['model'])
-            
-            # Cargar preprocesadores
-            preprocessors = joblib.load(self.model_files['preprocessors'])
-            
-            if isinstance(preprocessors, dict):
-                self.vectorizer = preprocessors.get('tfidf_vectorizer')
-                self.age_encoder = preprocessors.get('age_encoder')
-                self.gender_encoder = preprocessors.get('gender_encoder')
-                self.label_encoder = preprocessors.get('diagnosis_encoder')
-            else:
-                # Formato legacy (lista/tuple)
-                self.vectorizer = preprocessors[0] if len(preprocessors) > 0 else None
-                self.age_encoder = preprocessors[1] if len(preprocessors) > 1 else None
-                self.gender_encoder = preprocessors[2] if len(preprocessors) > 2 else None
-                self.label_encoder = preprocessors[3] if len(preprocessors) > 3 else None
-            
-            print(f"✅ Modelo {self.model_version} cargado exitosamente")
-            if self.label_encoder:
-                print(f"📊 Clases disponibles: {len(self.label_encoder.classes_)}")
-            
-            return True
-            
-        except Exception as e:
-            print(f"❌ Error cargando modelo {self.model_version}: {e}")
-            return False
+    # Archivos específicos que existen en tu sistema
+    model_files = {
+        'v8_model': 'modelo_diagnostico_v8_reentrenado.pkl',
+        'v8_preprocessor': 'preprocesadores_v8_reentrenado.pkl',
+        'v9_model': 'models_v9_final/modelo_diagnostico_v9_final.pkl',
+        'v9_preprocessor': 'models_v9_final/preprocesadores_v9_final.pkl',
+        'v7_model': 'modelo_diagnostico_v7_optimizado.pkl',
+        'v7_preprocessor': 'preprocesadores_v7.pkl'
+    }
     
-    def predict(self, symptoms, age_range, gender):
-        """Realizar predicción médica"""
-        try:
-            if not all([self.model, self.vectorizer, self.age_encoder, self.gender_encoder]):
-                return {
-                    'success': False,
-                    'error': f'Modelo {self.model_version} no está cargado correctamente'
-                }
-            
-            # Procesar entrada
-            symptoms_processed = self._preprocess_symptoms(symptoms)
-            symptoms_tfidf = self.vectorizer.transform([symptoms_processed])
-            
-            # Codificar características demográficas
-            try:
-                age_encoded = self.age_encoder.transform([age_range])
-                gender_encoded = self.gender_encoder.transform([gender])
-            except ValueError as e:
-                return {
-                    'success': False,
-                    'error': f'Valor demográfico no reconocido: {str(e)}'
-                }
-            
-            # Combinar características
-            features = hstack([symptoms_tfidf, age_encoded.reshape(1, -1), gender_encoded.reshape(1, -1)])
-            
-            # Hacer predicción
-            prediction = self.model.predict(features)[0]
-            probabilities = self.model.predict_proba(features)[0]
-            
-            # Obtener diagnóstico principal
-            main_diagnosis = self.label_encoder.inverse_transform([prediction])[0]
-            confidence = float(max(probabilities) * 100)
-            
-            # Top 5 predicciones
-            top_indices = np.argsort(probabilities)[::-1][:5]
-            top_predictions = []
-            
-            for idx in top_indices:
-                disease = self.label_encoder.inverse_transform([idx])[0]
-                prob = float(probabilities[idx] * 100)
-                top_predictions.append({
-                    'disease': disease,
-                    'probability': round(prob, 2)
-                })
-            
-            # Nivel de confianza
-            confidence_level = self._get_confidence_level(confidence)
-            
-            return {
-                'success': True,
-                'main_diagnosis': main_diagnosis,
-                'confidence': round(confidence, 2),
-                'confidence_level': confidence_level,
-                'top_predictions': top_predictions,
-                'processed_symptoms': symptoms_processed,
-                'model_version': self.model_version
-            }
-            
-        except Exception as e:
-            return {
-                'success': False,
-                'error': f'Error en predicción: {str(e)}'
-            }
+    print(f"🔍 Buscando modelos en: {os.path.abspath(base_models_dir)}")
     
-    def _preprocess_symptoms(self, symptoms):
-        """Preprocesar síntomas"""
-        if isinstance(symptoms, list):
-            symptoms = ' '.join(symptoms)
-        
-        # Limpiar y normalizar
-        symptoms = str(symptoms).lower().strip()
-        
-        # Remover caracteres especiales pero mantener espacios
-        import re
-        symptoms = re.sub(r'[^\w\s]', ' ', symptoms)
-        symptoms = re.sub(r'\s+', ' ', symptoms)
-        
-        return symptoms
+    if not os.path.exists(base_models_dir):
+        print(f"❌ Carpeta 'models' no encontrada en: {os.path.abspath(base_models_dir)}")
+        return model_paths
     
-    def _get_confidence_level(self, confidence):
-        """Determinar nivel de confianza"""
-        if confidence >= 90:
-            return "Muy Alta"
-        elif confidence >= 75:
-            return "Alta"
-        elif confidence >= 60:
-            return "Media"
-        elif confidence >= 45:
-            return "Baja"
+    # Verificar cada archivo específico
+    for key, filename in model_files.items():
+        full_path = os.path.join(base_models_dir, filename)
+        
+        if os.path.exists(full_path):
+            model_paths[key] = full_path
+            size = os.path.getsize(full_path) / (1024 * 1024)  # MB
+            print(f"✅ Encontrado {key}: {filename} ({size:.1f} MB)")
         else:
-            return "Muy Baja"
+            print(f"❌ No encontrado {key}: {filename}")
+            print(f"   Buscado en: {os.path.abspath(full_path)}")
+    
+    # Mostrar archivos disponibles para debug
+    print(f"\n📋 Archivos .pkl disponibles en models/:")
+    try:
+        for root, dirs, files in os.walk(base_models_dir):
+            for file in files:
+                if file.endswith('.pkl'):
+                    rel_path = os.path.relpath(os.path.join(root, file), base_models_dir)
+                    full_path = os.path.join(root, file)
+                    size = os.path.getsize(full_path) / (1024 * 1024)
+                    print(f"   📄 {rel_path} ({size:.1f} MB)")
+    except Exception as e:
+        print(f"   ❌ Error listando archivos: {e}")
+    
+    return model_paths
 
-
-class SaludIAPredictorV9:
-    """🆕 Predictor específico para modelo v9 (síntomas binarios)"""
+class DiagnosticPredictor:
+    """Predictor para diagnósticos médicos v8"""
     
     def __init__(self):
         self.model = None
-        self.preprocessors = None
-        self.diagnosis_encoder = None
-        self.feature_columns = []
+        self.vectorizer = None
+        self.label_encoder = None
+        self.scaler = None
+        self.loaded = False
+        self.error_message = ""
         
-        # Rutas de archivos del modelo v9
-        base_path = os.path.join(os.path.dirname(__file__), '..', 'models', 'models_v9_final')
-        self.model_files = {
-            'model': os.path.join(base_path, 'modelo_diagnostico_v9_final.pkl'),
-            'preprocessors': os.path.join(base_path, 'preprocesadores_v9_final.pkl')
-        }
-        
-        self._load_model()
+    def load_models(self):
+        """Cargar modelos v8 con rutas correctas"""
+        try:
+            print("🔄 Cargando modelo v8...")
+            
+            # Buscar archivos de modelo
+            model_paths = find_model_files()
+            
+            if 'v8_model' not in model_paths:
+                self.error_message = "Archivo modelo_diagnostico_v8_reentrenado.pkl no encontrado"
+                print(f"❌ {self.error_message}")
+                return False
+                
+            if 'v8_preprocessor' not in model_paths:
+                self.error_message = "Archivo preprocesadores_v8_reentrenado.pkl no encontrado"
+                print(f"❌ {self.error_message}")
+                return False
+            
+            # Cargar modelo
+            model_path = model_paths['v8_model']
+            print(f"📁 Cargando modelo v8 desde: {model_path}")
+            self.model = joblib.load(model_path)
+            print("   ✅ Modelo v8 cargado exitosamente")
+            
+            # Cargar preprocesadores
+            preprocessor_path = model_paths['v8_preprocessor']
+            print(f"📁 Cargando preprocesadores v8 desde: {preprocessor_path}")
+            preprocessors = joblib.load(preprocessor_path)
+            
+            # Verificar estructura de preprocesadores
+            if isinstance(preprocessors, dict):
+                self.vectorizer = preprocessors.get('vectorizer')
+                self.label_encoder = preprocessors.get('label_encoder')
+                self.scaler = preprocessors.get('scaler')
+                
+                print(f"   📦 Componentes encontrados:")
+                print(f"      - Vectorizer: {'✅' if self.vectorizer else '❌'}")
+                print(f"      - Label Encoder: {'✅' if self.label_encoder else '❌'}")
+                print(f"      - Scaler: {'✅' if self.scaler else '❌'}")
+            else:
+                # Si no es un diccionario, asumir que es solo el vectorizer
+                self.vectorizer = preprocessors
+                print("   ⚠️ Solo vectorizer encontrado (archivo no es diccionario)")
+            
+            if not self.vectorizer:
+                self.error_message = "Vectorizer no encontrado en preprocesadores"
+                print(f"❌ {self.error_message}")
+                return False
+            
+            print("   ✅ Preprocesadores v8 cargados exitosamente")
+            
+            self.loaded = True
+            return True
+            
+        except Exception as e:
+            self.error_message = f"Error cargando modelo v8: {str(e)}"
+            print(f"❌ {self.error_message}")
+            traceback.print_exc()
+            self.loaded = False
+            return False
     
-    def _load_model(self):
-        """Cargar modelo v9 y preprocesadores"""
+    def predict(self, symptoms_text, age=None, gender=None):
+        """Realizar predicción v8"""
+        if not self.loaded:
+            return {"error": f"Modelo v8 no cargado: {self.error_message}"}
+            
+        try:
+            # Procesar síntomas
+            symptoms_vector = self.vectorizer.transform([symptoms_text])
+            
+            # Agregar características adicionales si están disponibles
+            if age is not None and gender is not None and self.scaler:
+                additional_features = np.array([[age, 1 if gender.lower() in ['masculino', 'male', 'm'] else 0]])
+                additional_features = self.scaler.transform(additional_features)
+                symptoms_vector = np.hstack([symptoms_vector.toarray(), additional_features])
+            
+            # Predicción
+            prediction = self.model.predict(symptoms_vector)[0]
+            probability = self.model.predict_proba(symptoms_vector)[0]
+            
+            # Decodificar resultado si hay label_encoder
+            if self.label_encoder:
+                diagnosis = self.label_encoder.inverse_transform([prediction])[0]
+            else:
+                diagnosis = str(prediction)  # Usar predicción directa
+            
+            confidence = float(max(probability))
+            
+            return {
+                "diagnosis": diagnosis,
+                "confidence": confidence,
+                "model_version": "v8",
+                "timestamp": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            error_msg = f"Error en predicción v8: {str(e)}"
+            print(f"❌ {error_msg}")
+            traceback.print_exc()
+            return {"error": error_msg}
+
+class PredictorV9:
+    """Predictor para síntomas binarios v9"""
+    
+    def __init__(self):
+        self.model = None
+        self.preprocessor = None
+        self.loaded = False
+        self.error_message = ""
+        
+    def load_model(self):
+        """Cargar modelo v9 con rutas correctas"""
         try:
             print("🔄 Cargando modelo v9...")
             
-            # Verificar archivos
-            missing_files = []
-            for name, path in self.model_files.items():
-                if not os.path.exists(path):
-                    missing_files.append(f"{name}: {path}")
+            model_paths = find_model_files()
             
-            if missing_files:
-                print("❌ Archivos faltantes del modelo v9:")
-                for file in missing_files:
-                    print(f"   - {file}")
+            if 'v9_model' not in model_paths:
+                self.error_message = "Archivo modelo_diagnostico_v9_final.pkl no encontrado"
+                print(f"❌ {self.error_message}")
                 return False
             
-            # Cargar modelo y preprocesadores
-            self.model = joblib.load(self.model_files['model'])
-            self.preprocessors = joblib.load(self.model_files['preprocessors'])
+            # Cargar modelo v9
+            model_path = model_paths['v9_model']
+            print(f"📁 Cargando modelo v9 desde: {model_path}")
+            self.model = joblib.load(model_path)
+            print("   ✅ Modelo v9 cargado exitosamente")
             
-            # Extraer componentes del preprocesador
-            if isinstance(self.preprocessors, dict):
-                self.diagnosis_encoder = self.preprocessors.get('diagnosis_encoder')
-                self.feature_columns = self.preprocessors.get('feature_columns', [])
-                model_info = self.preprocessors.get('model_info', {})
-                
-                print("✅ Modelo v9 cargado exitosamente")
-                print(f"📊 Síntomas soportados: {len(self.feature_columns)}")
-                print(f"🏥 Enfermedades: {len(self.diagnosis_encoder.classes_) if self.diagnosis_encoder else 'N/A'}")
-                print(f"🎯 Precisión reportada: {model_info.get('accuracy', 'N/A')}")
-                
-                return True
+            # Cargar preprocesador v9 si existe
+            if 'v9_preprocessor' in model_paths:
+                preprocessor_path = model_paths['v9_preprocessor']
+                print(f"📁 Cargando preprocesador v9 desde: {preprocessor_path}")
+                self.preprocessor = joblib.load(preprocessor_path)
+                print("   ✅ Preprocesador v9 cargado")
             else:
-                print("❌ Formato de preprocesadores no reconocido")
-                return False
-                
+                print("   ⚠️ No se encontró preprocesador v9 (opcional)")
+            
+            self.loaded = True
+            return True
+            
         except Exception as e:
-            print(f"❌ Error cargando modelo v9: {e}")
+            self.error_message = f"Error cargando modelo v9: {str(e)}"
+            print(f"❌ {self.error_message}")
+            traceback.print_exc()
+            self.loaded = False
             return False
     
-    def get_symptoms_list(self):
-        """Obtener lista completa de síntomas soportados"""
-        return self.feature_columns
-    
-    def predict(self, symptoms_dict):
-        """
-        Realizar predicción con síntomas binarios
-        
-        Args:
-            symptoms_dict: Dict con síntomas como keys y 0/1 como values
-                         Ejemplo: {'itching': 1, 'skin_rash': 1, 'fever': 0}
-        """
+    def predict(self, symptoms_binary):
+        """Realizar predicción v9"""
+        if not self.loaded:
+            return {"error": f"Modelo v9 no cargado: {self.error_message}"}
+            
         try:
-            if not self.model or not self.diagnosis_encoder or not self.feature_columns:
-                return {
-                    'success': False,
-                    'error': 'Modelo v9 no está cargado correctamente'
-                }
+            # Convertir a array numpy
+            symptoms_array = np.array(symptoms_binary).reshape(1, -1)
             
-            # Crear vector de características
-            features = []
-            for symptom in self.feature_columns:
-                features.append(symptoms_dict.get(symptom, 0))
+            # Aplicar preprocesador si existe
+            if self.preprocessor:
+                symptoms_array = self.preprocessor.transform(symptoms_array)
             
-            features_array = np.array(features).reshape(1, -1)
-            
-            # Hacer predicción
-            prediction_idx = self.model.predict(features_array)[0]
-            probabilities = self.model.predict_proba(features_array)[0]
-            
-            # Obtener diagnóstico principal
-            main_diagnosis = self.diagnosis_encoder.inverse_transform([prediction_idx])[0]
-            confidence = float(probabilities[prediction_idx] * 100)
-            
-            # Top 5 predicciones
-            top_indices = np.argsort(probabilities)[::-1][:5]
-            top_predictions = []
-            
-            for idx in top_indices:
-                disease = self.diagnosis_encoder.inverse_transform([idx])[0]
-                prob = float(probabilities[idx] * 100)
-                if prob > 0.01:  # Solo mostrar probabilidades > 0.01%
-                    top_predictions.append({
-                        'disease': disease,
-                        'probability': round(prob, 2)
-                    })
-            
-            # Nivel de confianza
-            confidence_level = self._get_confidence_level(confidence)
-            
-            # Síntomas activos
-            active_symptoms = [symptom for symptom, value in symptoms_dict.items() if value == 1]
+            # Predicción
+            prediction = self.model.predict(symptoms_array)[0]
+            probability = self.model.predict_proba(symptoms_array)[0]
             
             return {
-                'success': True,
-                'main_diagnosis': main_diagnosis,
-                'confidence': round(confidence, 2),
-                'confidence_level': confidence_level,
-                'top_predictions': top_predictions,
-                'active_symptoms': active_symptoms,
-                'total_symptoms_checked': len(symptoms_dict),
-                'model_version': 'v9'
+                "diagnosis": str(prediction),
+                "confidence": float(max(probability)),
+                "model_version": "v9",
+                "timestamp": datetime.now().isoformat()
             }
             
         except Exception as e:
-            return {
-                'success': False,
-                'error': f'Error en predicción v9: {str(e)}'
-            }
+            error_msg = f"Error en predicción v9: {str(e)}"
+            print(f"❌ {error_msg}")
+            return {"error": error_msg}
+
+# Inicializar predictores globales
+def initialize_predictors():
+    """Inicializar todos los predictores"""
+    global predictor, predictor_v9
     
-    def _get_confidence_level(self, confidence):
-        """Determinar nivel de confianza para v9"""
-        if confidence >= 95:
-            return "Muy Alta"
-        elif confidence >= 85:
-            return "Alta"
-        elif confidence >= 70:
-            return "Media"
-        elif confidence >= 50:
-            return "Baja"
-        else:
-            return "Muy Baja"
+    print("🤖 Inicializando predictores...")
+    print(f"📁 Directorio de trabajo: {os.getcwd()}")
+    print(f"📁 Directorio models existe: {os.path.exists('models')}")
+    
+    # Predictor v8
+    predictor = DiagnosticPredictor()
+    v8_success = predictor.load_models()
+    
+    # Predictor v9
+    predictor_v9 = PredictorV9()
+    v9_success = predictor_v9.load_model()
+    
+    print(f"\n📊 ESTADO FINAL DE MODELOS:")
+    print(f"   V8: {'✅ CARGADO' if v8_success else '❌ FALLO'}")
+    print(f"   V9: {'✅ CARGADO' if v9_success else '❌ FALLO'}")
+    
+    if v8_success or v9_success:
+        print(f"🎉 Al menos un modelo se cargó correctamente")
+    else:
+        print("⚠️ ADVERTENCIA: Ningún modelo se cargó correctamente")
+        print("💡 Verificar que los archivos estén en la carpeta 'models/'")
+    
+    print("✅ Inicialización de predictores completada")
 
+# [Mantener todas las rutas del Blueprint igual...]
+@predictor_bp.route('/predict-friendly', methods=['POST'])
+def predict_friendly():
+    """Endpoint para predicción amigable (v8)"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({"error": "No se enviaron datos"}), 400
+        
+        symptoms = data.get('symptoms', '')
+        age = data.get('age')
+        gender = data.get('gender')
+        
+        if not symptoms:
+            return jsonify({"error": "Se requiere el campo 'symptoms'"}), 400
+        
+        # Verificar que el predictor esté disponible
+        if not predictor or not predictor.loaded:
+            return jsonify({
+                "error": "Modelo v8 no disponible",
+                "details": predictor.error_message if predictor else "Predictor no inicializado",
+                "suggestion": "Verificar que los archivos modelo_diagnostico_v8_reentrenado.pkl y preprocesadores_v8_reentrenado.pkl estén en 'models/'"
+            }), 503
+        
+        # Realizar predicción
+        result = predictor.predict(symptoms, age, gender)
+        
+        if "error" in result:
+            return jsonify(result), 500
+        
+        return jsonify({
+            "success": True,
+            "prediction": result,
+            "message": "Predicción realizada exitosamente"
+        })
+        
+    except Exception as e:
+        logging.error(f"Error en predict-friendly: {e}")
+        traceback.print_exc()
+        return jsonify({"error": f"Error interno: {str(e)}"}), 500
 
-# 🔧 INSTANCIAS GLOBALES
-try:
-    # Cargar modelo principal (v8 por defecto)
-    predictor = SaludIAPredictor(model_version='v8')
-    print("✅ Predictor v8 inicializado")
-except Exception as e:
-    print(f"⚠️ Error inicializando predictor v8: {e}")
-    predictor = None
+@predictor_bp.route('/model-status', methods=['GET'])
+def model_status():
+    """Verificar estado de los modelos"""
+    return jsonify({
+        "working_directory": os.getcwd(),
+        "models_directory_exists": os.path.exists('models'),
+        "v8_model": {
+            "loaded": predictor.loaded if predictor else False,
+            "error": predictor.error_message if predictor else "No inicializado"
+        },
+        "v9_model": {
+            "loaded": predictor_v9.loaded if predictor_v9 else False,
+            "error": predictor_v9.error_message if predictor_v9 else "No inicializado"
+        }
+    })
 
-try:
-    # Cargar modelo v9
-    predictor_v9 = SaludIAPredictorV9()
-    print("✅ Predictor v9 inicializado") 
-except Exception as e:
-    print(f"⚠️ Error inicializando predictor v9: {e}")
-    predictor_v9 = None
+@predictor_bp.route('/predict', methods=['POST'])
+def predict_technical():
+    """Endpoint para predicción técnica (v8)"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({"error": "No se enviaron datos"}), 400
+        
+        symptoms = data.get('symptoms', '')
+        
+        if not symptoms:
+            return jsonify({"error": "Se requiere el campo 'symptoms'"}), 400
+        
+        if not predictor or not predictor.loaded:
+            return jsonify({
+                "error": "Modelo v8 no disponible",
+                "details": predictor.error_message if predictor else "Predictor no inicializado"
+            }), 503
+        
+        # Realizar predicción
+        result = predictor.predict(symptoms)
+        
+        if "error" in result:
+            return jsonify(result), 500
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logging.error(f"Error en predict: {e}")
+        return jsonify({"error": f"Error interno: {str(e)}"}), 500
 
-# También mantener v7 disponible
-try:
-    predictor_v7 = SaludIAPredictor(model_version='v7')
-    print("✅ Predictor v7 inicializado")
-except Exception as e:
-    print(f"⚠️ Error inicializando predictor v7: {e}")
-    predictor_v7 = None
+@predictor_bp.route('/predict-v9', methods=['POST'])
+def predict_v9():
+    """Endpoint para predicción con síntomas binarios (v9)"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({"error": "No se enviaron datos"}), 400
+        
+        symptoms_binary = data.get('symptoms_binary', [])
+        
+        if not symptoms_binary or not isinstance(symptoms_binary, list):
+            return jsonify({"error": "Se requiere 'symptoms_binary' como lista"}), 400
+        
+        if not predictor_v9 or not predictor_v9.loaded:
+            return jsonify({
+                "error": "Modelo v9 no disponible",
+                "details": predictor_v9.error_message if predictor_v9 else "Predictor no inicializado"
+            }), 503
+        
+        # Realizar predicción
+        result = predictor_v9.predict(symptoms_binary)
+        
+        if "error" in result:
+            return jsonify(result), 500
+        
+        return jsonify({
+            "success": True,
+            "prediction": result,
+            "message": "Predicción v9 realizada exitosamente"
+        })
+        
+    except Exception as e:
+        logging.error(f"Error en predict-v9: {e}")
+        return jsonify({"error": f"Error interno: {str(e)}"}), 500
+
+@predictor_bp.route('/symptoms-v9', methods=['GET'])
+def get_symptoms_v9():
+    """Obtener lista de síntomas para v9"""
+    symptoms_list = [
+        "fiebre", "tos", "dolor_cabeza", "fatiga", "dolor_garganta",
+        "congestion_nasal", "dolor_muscular", "nauseas", "vomito", 
+        "diarrea", "dolor_abdominal", "erupciones_piel"
+    ]
+    
+    return jsonify({
+        "symptoms": symptoms_list,
+        "total": len(symptoms_list),
+        "model_version": "v9"
+    })
+
+# Inicializar predictores al importar el módulo
+initialize_predictors()

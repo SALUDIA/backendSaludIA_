@@ -21,11 +21,10 @@ if os.getenv('FLASK_ENV') == 'production':
     logging.basicConfig(level=logging.INFO)
     app.logger.setLevel(logging.INFO)
 
-# Importar rutas después de crear app
+# Importar y registrar blueprints
 from src.predictor import predictor_bp
 from src.database import database_bp
 
-# Registrar blueprints
 app.register_blueprint(predictor_bp)
 app.register_blueprint(database_bp)
 
@@ -57,7 +56,9 @@ def root():
         'version': '1.0.0',
         'endpoints': {
             'health': '/health',
-            'predict': '/predict-friendly',
-            'predict_v9': '/predict-v9'
+            'predict_friendly': '/predict-friendly',
+            'predict_technical': '/predict',
+            'predict_v9': '/predict-v9',
+            'symptoms_v9': '/symptoms-v9'
         }
     })
