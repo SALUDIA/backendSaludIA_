@@ -1,103 +1,130 @@
 import re
-import string
 import pandas as pd
-import nltk
-from nltk.corpus import stopwords
-from nltk.tokenize import word_tokenize
-from nltk.stem import WordNetLemmatizer
+import numpy as np
+from scipy.sparse import hstack
+import logging
 
-# Descargar recursos NLTK si no están disponibles
-def download_nltk_data():
-    """Descargar recursos necesarios de NLTK"""
-    try:
-        word_tokenize("test")
-        stopwords.words('english')
-        WordNetLemmatizer().lemmatize("test")
-    except (LookupError, OSError):
-        print("📦 Descargando recursos de NLTK...")
-        nltk.download('punkt', quiet=True)
-        nltk.download('stopwords', quiet=True)
-        nltk.download('wordnet', quiet=True)
-        nltk.download('punkt_tab', quiet=True)
-        print("✅ Recursos NLTK descargados")
+class TextPreprocessor:
+    """Preprocesador de texto médico"""
+    
+    @staticmethod
+    def clean_medical_text(text):
+        """Limpiar texto médico"""
+        if pd.isna(text) or text == '':
+            return 'patient presents with general symptoms'
+        
+        text = str(text).lower()
+        
+        # Términos médicos importantes que no deben ser eliminados
+        medical_terms = [
+            'patient', 'experiences', 'has', 'shows', 'reports', 
+            'complains', 'presents', 'symptoms', 'pain', 'fever', 
+            'headache', 'nausea', 'chest', 'abdominal', 'breathing'
+        ]
+        
+        # Limpiar caracteres especiales pero conservar espacios
+        text = re.sub(r'[^\w\s]', ' ', text)
+        text = re.sub(r'\d+', '', text)
+        text = re.sub(r'\s+', ' ', text)
+        
+        # Filtrar palabras muy cortas excepto términos médicos importantes
+        words = text.split()
+        words = [word for word in words if len(word) >= 3 or word in medical_terms]
+        text = ' '.join(words)
+        
+        # Asegurar que el texto tenga contenido mínimo
+        if len(text.split()) < 3:
+            text = 'patient presents with general symptoms'
+            
+        return text.strip()
 
-# Descargar al importar el módulo
-download_nltk_data()
+class FeatureBuilder:
+    """Constructor de características para predicción"""
+    
+    def __init__(self, model_data):
+        self.model = model_data['model']
+        self.prep = model_data['preprocessor']
+        
+    def build_text_features(self, text, age_range=None, gender=None):
+        """Construir características para modelos de texto"""
+        try:
+            # 1. Preprocesar texto
+            clean_text = TextPreprocessor.clean_medical_text(text)
+            
+            # 2. Vectorizar texto con TF-IDF
+            if 'tfidf_vectorizer' not in self.prep:
+                raise ValueError("TF-IDF vectorizador no encontrado")
+                
+            tfidf = self.prep['tfidf_vectorizer']
+            text_features = tfidf.transform([clean_text])
+            
+            # 3. Agregar características demográficas si el modelo las requiere
+            if 'age_encoder' in self.prep and 'gender_encoder' in self.prep:
+                age_encoder = self.prep['age_encoder']
+                gender_encoder = self.prep['gender_encoder']
+                
+                # Usar valores por defecto
+                if not age_range:
+                    age_range = "25-34"
+                if not gender:
+                    gender = "Unknown"
+                
+                # Validar y corregir categorías
+                if age_range not in age_encoder.classes_:
+                    age_range = age_encoder.classes_[0]
+                    
+                if gender not in gender_encoder.classes_:
+                    gender = gender_encoder.classes_[0]
+                
+                # Codificar
+                age_enc = age_encoder.transform([age_range])[0]
+                gender_enc = gender_encoder.transform([gender])[0]
+                
+                # Combinar características
+                demo_features = np.array([[age_enc, gender_enc]])
+                combined_features = hstack([text_features, demo_features])
+                
+                logging.info(f"Características: TF-IDF({text_features.shape[1]}) + Demo(2) = {combined_features.shape[1]}")
+                
+                return combined_features, clean_text
+            else:
+                return text_features, clean_text
+                
+        except Exception as e:
+            logging.error(f"Error construyendo características: {e}")
+            raise
+    
+    def build_binary_features(self, symptoms_array):
+        """Construir características para modelo binario"""
+        try:
+            # Validar longitud esperada
+            if 'feature_columns' in self.prep:
+                expected_length = len(self.prep['feature_columns'])
+                if len(symptoms_array) != expected_length:
+                    raise ValueError(f"Se esperan {expected_length} síntomas, recibidos {len(symptoms_array)}")
+            
+            return np.array(symptoms_array).reshape(1, -1)
+            
+        except Exception as e:
+            logging.error(f"Error construyendo características binarias: {e}")
+            raise
 
-def preprocess_text_advanced(text):
-    """
-    Preprocesamiento avanzado de texto médico
-    Compatible con el modelo v8
-    """
-    if pd.isna(text) or text is None or text == '':
-        return ''
+class PredictionDecoder:
+    """Decodificador de predicciones"""
     
-    # Convertir a string y minúsculas
-    text = str(text).lower()
-    
-    # Remover patrones médicos específicos pero preservar información importante
-    text = re.sub(r'\b(patient|enrollee|reviewer|medical|treatment)\b', '', text)
-    text = re.sub(r'\b\d+[-/]\d+[-/]\d+\b', '', text)  # Fechas
-    text = re.sub(r'\b\d{2,4}\b', '', text)  # Años/números grandes
-    
-    # Preservar términos médicos importantes
-    medical_terms = [
-        'hypertension', 'diabetes', 'cardiac', 'hepatitis', 'autism', 
-        'depression', 'anxiety', 'therapy', 'surgery', 'medication',
-        'fever', 'cough', 'fatigue', 'breathing', 'cholesterol',
-        'headache', 'nausea', 'vomiting', 'diarrhea', 'constipation',
-        'asthma', 'pneumonia', 'bronchitis', 'influenza', 'migraine',
-        'eczema', 'dermatitis', 'arthritis', 'osteoporosis', 'anemia'
-    ]
-    
-    # Remover puntuación
-    text = text.translate(str.maketrans('', '', string.punctuation))
-    
-    # Tokenización
-    tokens = word_tokenize(text)
-    
-    # Lemmatización y filtrado
-    lemmatizer = WordNetLemmatizer()
-    stop_words = set(stopwords.words('english'))
-    
-    # Filtrar tokens manteniendo términos médicos importantes
-    tokens = [
-        lemmatizer.lemmatize(word) for word in tokens 
-        if (word not in stop_words and len(word) > 2) or word in medical_terms
-    ]
-    
-    return ' '.join(tokens)
-
-def validate_input(symptoms, age_range, gender):
-    """
-    Validar entrada del usuario
-    """
-    errors = []
-    
-    # Validar síntomas
-    if not symptoms or len(symptoms.strip()) < 5:
-        errors.append("Los síntomas deben tener al menos 5 caracteres")
-    
-    # Validar rango de edad
-    valid_ages = ['0-10', '11_20', '21-30', '31-40', '41-50', '51-64', '65+', '0-20', '51-60', '61-70', '71+']
-    if age_range not in valid_ages:
-        errors.append(f"Rango de edad inválido. Opciones válidas: {valid_ages}")
-    
-    # Validar género
-    valid_genders = ['Male', 'Female']
-    if gender not in valid_genders:
-        errors.append(f"Género inválido. Opciones válidas: {valid_genders}")
-    
-    return errors
-
-def format_symptoms_for_model(symptoms):
-    """
-    Formatear síntomas para el modelo
-    """
-    # Si los síntomas no están en formato médico, convertirlos
-    if not symptoms.lower().startswith('patient'):
-        formatted = f"Patient presents with {symptoms.lower()}"
-    else:
-        formatted = symptoms
-    
-    return formatted
+    @staticmethod
+    def decode_prediction(prediction, probabilities, preprocessor):
+        """Decodificar predicción a diagnóstico legible"""
+        try:
+            if 'diagnosis_encoder' in preprocessor:
+                diagnosis = preprocessor['diagnosis_encoder'].inverse_transform([prediction])[0]
+            else:
+                diagnosis = str(prediction)
+            
+            confidence = float(max(probabilities)) * 100
+            
+            return diagnosis, confidence
+            
+        except Exception as e:
+            logging.error(f"Error decodificando predicción: {e}")
+            return str(prediction), 0.0
