@@ -1,10 +1,12 @@
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+# Solo cargar .env en desarrollo
+if os.getenv('FLASK_ENV') != 'production':
+    load_dotenv()
 
 class Config:
-    """Configuración actualizada para usar Aiven"""
+    """Configuración para desarrollo y producción"""
     
     # Configuración de base de datos
     FORCE_AIVEN = os.getenv('FORCE_AIVEN', 'false').lower() == 'true'
@@ -13,7 +15,7 @@ class Config:
     AIVEN_DB_HOST = os.getenv('DB_HOST')
     AIVEN_DB_USER = os.getenv('DB_USER')
     AIVEN_DB_PASSWORD = os.getenv('DB_PASSWORD')
-    AIVEN_DB_NAME = os.getenv('DB_NAME', 'saludia_db')
+    AIVEN_DB_NAME = os.getenv('DB_NAME', 'saludiadb')
     AIVEN_DB_PORT = int(os.getenv('DB_PORT', 28633))
     
     # Local DB (Desarrollo)
@@ -37,15 +39,22 @@ class Config:
         """Retorna configuración de BD según FORCE_AIVEN"""
         if Config.FORCE_AIVEN:
             print("🌐 Usando base de datos AIVEN (Producción)")
-            return {
+            config = {
                 'host': Config.AIVEN_DB_HOST,
                 'user': Config.AIVEN_DB_USER,
                 'password': Config.AIVEN_DB_PASSWORD,
                 'database': Config.AIVEN_DB_NAME,
                 'port': Config.AIVEN_DB_PORT,
-                'ssl_disabled': not Config.DB_SSL_REQUIRED,
                 'autocommit': True
             }
+            
+            # SSL solo si es requerido
+            if Config.DB_SSL_REQUIRED:
+                config['ssl_disabled'] = False
+            else:
+                config['ssl_disabled'] = True
+                
+            return config
         else:
             print("🏠 Usando base de datos LOCAL (Desarrollo)")
             return {
