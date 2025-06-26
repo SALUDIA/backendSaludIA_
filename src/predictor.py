@@ -3,6 +3,7 @@ import os
 import numpy as np
 from datetime import datetime
 import logging
+from src.preprocessor import FeatureBuilder, PredictionDecoder
 
 class ModelManager:
     """Gestor simplificado de modelos"""
@@ -56,6 +57,9 @@ class ModelManager:
                         'type': 'binary' if version == 'v9' else 'text'
                     }
                     print(f"   ✅ {version}: Cargado exitosamente")
+                    
+                    # Mostrar info del modelo
+                    self._print_model_info(version, preprocessor)
                 else:
                     print(f"   ❌ {version}: Archivos no encontrados")
                     
@@ -63,6 +67,30 @@ class ModelManager:
                 print(f"   ❌ {version}: Error - {e}")
         
         print(f"📊 Total modelos cargados: {len(self.models)}")
+    
+    def _print_model_info(self, version, prep):
+        """Mostrar información del modelo cargado"""
+        info_parts = []
+        
+        if 'tfidf_vectorizer' in prep:
+            tfidf_features = prep['tfidf_vectorizer'].get_feature_names_out().shape[0]
+            info_parts.append(f"TF-IDF: {tfidf_features}")
+        
+        if 'age_encoder' in prep:
+            info_parts.append("Age: ✓")
+        
+        if 'gender_encoder' in prep:
+            info_parts.append("Gender: ✓")
+        
+        if 'diagnosis_encoder' in prep:
+            diseases_count = len(prep['diagnosis_encoder'].classes_)
+            info_parts.append(f"Diseases: {diseases_count}")
+        
+        if 'feature_columns' in prep:
+            symptoms_count = len(prep['feature_columns'])
+            info_parts.append(f"Symptoms: {symptoms_count}")
+        
+        print(f"      📋 {' | '.join(info_parts)}")
     
     def get_available_models(self):
         """Obtener lista de modelos disponibles"""
@@ -75,45 +103,32 @@ class ModelManager:
         
         try:
             model_data = self.models[model_version]
+            
+            # Usar FeatureBuilder para construir características
+            feature_builder = FeatureBuilder(model_data)
+            features, processed_text = feature_builder.build_text_features(text, age_range, gender)
+            
+            # Realizar predicción
             model = model_data['model']
-            prep = model_data['preprocessor']
-            
-            # Procesar texto
-            if 'tfidf_vectorizer' in prep:
-                text_features = prep['tfidf_vectorizer'].transform([text])
-            else:
-                return {"error": "Vectorizador no encontrado"}
-            
-            # Agregar características demográficas si están disponibles
-            features = text_features
-            if age_range and gender and 'age_encoder' in prep and 'gender_encoder' in prep:
-                try:
-                    age_enc = prep['age_encoder'].transform([age_range])[0]
-                    gender_enc = prep['gender_encoder'].transform([gender])[0]
-                    demo_features = np.array([[age_enc, gender_enc]])
-                    from scipy.sparse import hstack
-                    features = hstack([text_features, demo_features])
-                except:
-                    pass  # Usar solo texto si falla
-            
-            # Predicción
             prediction = model.predict(features)[0]
             probabilities = model.predict_proba(features)[0]
             
             # Decodificar resultado
-            if 'diagnosis_encoder' in prep:
-                diagnosis = prep['diagnosis_encoder'].inverse_transform([prediction])[0]
-            else:
-                diagnosis = str(prediction)
+            diagnosis, confidence = PredictionDecoder.decode_prediction(
+                prediction, probabilities, model_data['preprocessor']
+            )
             
             return {
                 "diagnosis": diagnosis,
-                "confidence": float(max(probabilities)) * 100,
+                "confidence": confidence,
                 "model_version": model_version,
+                "processed_text": processed_text,
+                "features_count": features.shape[1],
                 "timestamp": datetime.now().isoformat()
             }
             
         except Exception as e:
+            logging.error(f"Error en predicción de texto: {e}")
             return {"error": f"Error en predicción: {str(e)}"}
     
     def predict_binary(self, symptoms_array, model_version='v9'):
@@ -123,25 +138,24 @@ class ModelManager:
         
         try:
             model_data = self.models[model_version]
+            
+            # Usar FeatureBuilder para construir características
+            feature_builder = FeatureBuilder(model_data)
+            features = feature_builder.build_binary_features(symptoms_array)
+            
+            # Realizar predicción
             model = model_data['model']
-            prep = model_data['preprocessor']
-            
-            # Convertir a numpy array
-            symptoms = np.array(symptoms_array).reshape(1, -1)
-            
-            # Predicción
-            prediction = model.predict(symptoms)[0]
-            probabilities = model.predict_proba(symptoms)[0]
+            prediction = model.predict(features)[0]
+            probabilities = model.predict_proba(features)[0]
             
             # Decodificar resultado
-            if 'diagnosis_encoder' in prep:
-                diagnosis = prep['diagnosis_encoder'].inverse_transform([prediction])[0]
-            else:
-                diagnosis = str(prediction)
+            diagnosis, confidence = PredictionDecoder.decode_prediction(
+                prediction, probabilities, model_data['preprocessor']
+            )
             
             return {
                 "diagnosis": diagnosis,
-                "confidence": float(max(probabilities)) * 100,
+                "confidence": confidence,
                 "model_version": model_version,
                 "timestamp": datetime.now().isoformat()
             }
