@@ -1,64 +1,99 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-from config.loader import get_config_instance, get_db_config
-import os
+from flask import Blueprint, request, jsonify
+from src.predictor import model_manager
 import logging
 
-# Crear aplicación Flask
-app = Flask(__name__)
+api_bp = Blueprint('api', __name__)
 
-# Configurar CORS
-CORS(app, resources={
-    r"/*": {
-        "origins": ["*"],
-        "methods": ["GET", "POST", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"]
-    }
-})
+@api_bp.route('/', methods=['GET'])
+def home():
+    """Endpoint de inicio"""
+    return jsonify({
+        "message": "SaludIA API - Sistema de Diagnóstico Médico",
+        "version": "2.0",
+        "available_models": model_manager.get_available_models(),
+        "endpoints": {
+            "predict": "POST /api/predict",
+            "predict-v9": "POST /api/predict-v9", 
+            "models": "GET /api/models",
+            "health": "GET /api/health"
+        }
+    })
 
-# Configurar logging para producción
-if os.getenv('FLASK_ENV') == 'production':
-    logging.basicConfig(level=logging.INFO)
-    app.logger.setLevel(logging.INFO)
-
-# Importar y registrar blueprints
-from src.predictor import predictor_bp
-from src.database import database_bp
-
-app.register_blueprint(predictor_bp)
-app.register_blueprint(database_bp)
-
-@app.route('/health', methods=['GET'])
-def health_check():
-    """Health check endpoint"""
+@api_bp.route('/predict', methods=['POST'])
+def predict():
+    """Predicción con texto libre"""
     try:
-        db_config = get_db_config()
-        db_host = db_config.get('host', 'unknown')
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({"error": "No se enviaron datos"}), 400
+        
+        symptoms = data.get('symptoms', '')
+        model_version = data.get('model', 'v8')
+        age_range = data.get('age_range')
+        gender = data.get('gender')
+        
+        if not symptoms:
+            return jsonify({"error": "Campo 'symptoms' requerido"}), 400
+        
+        # Realizar predicción
+        result = model_manager.predict_text(symptoms, model_version, age_range, gender)
+        
+        if "error" in result:
+            return jsonify(result), 500
         
         return jsonify({
-            'status': 'healthy',
-            'message': 'SaludIA API is running',
-            'database': 'Aiven MySQL' if 'aivencloud.com' in db_host else 'Local MySQL',
-            'environment': os.getenv('FLASK_ENV', 'development'),
-            'version': '1.0.0'
+            "success": True,
+            "result": result
         })
+        
     except Exception as e:
-        return jsonify({
-            'status': 'error',
-            'message': str(e)
-        }), 500
+        logging.error(f"Error en /predict: {e}")
+        return jsonify({"error": str(e)}), 500
 
-@app.route('/', methods=['GET'])
-def root():
-    """Root endpoint"""
+@api_bp.route('/predict-v9', methods=['POST'])
+def predict_v9():
+    """Predicción con síntomas binarios (v9)"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({"error": "No se enviaron datos"}), 400
+        
+        symptoms_binary = data.get('symptoms', [])
+        
+        if not symptoms_binary or not isinstance(symptoms_binary, list):
+            return jsonify({"error": "Campo 'symptoms' debe ser una lista binaria"}), 400
+        
+        # Realizar predicción
+        result = model_manager.predict_binary(symptoms_binary, 'v9')
+        
+        if "error" in result:
+            return jsonify(result), 500
+        
+        return jsonify({
+            "success": True,
+            "result": result
+        })
+        
+    except Exception as e:
+        logging.error(f"Error en /predict-v9: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@api_bp.route('/models', methods=['GET'])
+def get_models():
+    """Obtener información de modelos disponibles"""
     return jsonify({
-        'message': 'SaludIA Backend API',
-        'version': '1.0.0',
-        'endpoints': {
-            'health': '/health',
-            'predict_friendly': '/predict-friendly',
-            'predict_technical': '/predict',
-            'predict_v9': '/predict-v9',
-            'symptoms_v9': '/symptoms-v9'
-        }
+        "available_models": model_manager.get_available_models(),
+        "total": len(model_manager.models),
+        "recommended": "v9"
+    })
+
+@api_bp.route('/health', methods=['GET'])
+def health_check():
+    """Verificar estado de la API"""
+    return jsonify({
+        "status": "healthy",
+        "models_loaded": len(model_manager.models),
+        "available_models": model_manager.get_available_models()
     })

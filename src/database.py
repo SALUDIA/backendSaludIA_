@@ -1,77 +1,51 @@
-from flask import Blueprint
 import mysql.connector
 from mysql.connector import Error
-from config.loader import get_db_config
+from src.config import Config
 import logging
-
-# Crear Blueprint para database
-database_bp = Blueprint('database', __name__)
+from datetime import datetime
 
 class DatabaseManager:
+    """Gestor simplificado de base de datos"""
+    
     def __init__(self):
         self.connection = None
-        self.cursor = None
-        
-    def test_connection(self):
-        """Probar conexión a la base de datos"""
+    
+    def connect(self):
+        """Conectar a la base de datos"""
         try:
-            print("🔍 Probando conexión a base de datos...")
-            
-            db_config = get_db_config()
-            
-            # Configuración limpia para conexión
-            connection_config = {
-                'host': db_config['host'],
-                'user': db_config['user'],
-                'password': db_config['password'],
-                'database': db_config['database'],
-                'port': db_config['port'],
-                'charset': db_config.get('charset', 'utf8mb4'),
-                'autocommit': True,
-                'connect_timeout': 30
-            }
-            
-            # SSL para Aiven
-            if 'aivencloud.com' in db_config['host']:
-                connection_config.update({
-                    'ssl_disabled': False,
-                    'ssl_verify_cert': False,
-                    'ssl_verify_identity': False
-                })
-                print("🔒 SSL habilitado para Aiven")
-            else:
-                connection_config['ssl_disabled'] = True
-                print("🔓 SSL deshabilitado para BD local")
-            
-            print(f"🔗 Conectando a: {db_config['host']}:{db_config['port']}")
-            
-            # Probar conexión
-            connection = mysql.connector.connect(**connection_config)
-            
-            if connection.is_connected():
-                # Obtener info del servidor
-                db_info = connection.get_server_info()
-                cursor = connection.cursor()
-                cursor.execute("SELECT DATABASE();")
-                db_name = cursor.fetchone()[0]
-                
-                print(f"✅ Conectado a MySQL {db_info}")
-                print(f"📊 Base de datos: {db_name}")
-                
-                cursor.close()
-                connection.close()
-                
-                return True
-            else:
-                print("❌ Conexión fallida")
-                return False
-                
+            config = Config.get_db_config()
+            self.connection = mysql.connector.connect(**config)
+            return True
         except Error as e:
-            print(f"❌ Error MySQL: {e}")
+            logging.error(f"Error conectando a BD: {e}")
             return False
-        except Exception as e:
-            print(f"❌ Error general: {e}")
+    
+    def disconnect(self):
+        """Desconectar de la base de datos"""
+        if self.connection and self.connection.is_connected():
+            self.connection.close()
+    
+    def log_prediction(self, symptoms, diagnosis, confidence, model_version):
+        """Registrar predicción en BD"""
+        if not self.connect():
             return False
+        
+        try:
+            cursor = self.connection.cursor()
+            query = """
+                INSERT INTO predictions (symptoms, diagnosis, confidence, model_version, timestamp)
+                VALUES (%s, %s, %s, %s, %s)
+            """
+            values = (symptoms, diagnosis, confidence, model_version, datetime.now())
+            cursor.execute(query, values)
+            self.connection.commit()
+            return True
+            
+        except Error as e:
+            logging.error(f"Error guardando predicción: {e}")
+            return False
+        finally:
+            self.disconnect()
 
 # Instancia global
 db_manager = DatabaseManager()
