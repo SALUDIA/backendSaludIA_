@@ -1,138 +1,159 @@
-from googletrans import Translator
-import re
+from deep_translator import GoogleTranslator
 import logging
+import re
 
 class TranslatorManager:
-    """Gestor de traducción y categorización automática"""
+    """Gestor de traducción usando deep-translator (compatible con Python 3.13)"""
     
     def __init__(self):
-        self.translator = Translator()
-        
-        # Mapeo de rangos de edad
-        self.age_ranges = {
-            (0, 12): "0-12",
-            (13, 17): "13-17", 
-            (18, 24): "18-24",
-            (25, 34): "25-34",
-            (35, 44): "35-44",
-            (45, 54): "45-54",
-            (55, 64): "55-64",
-            (65, 120): "65+"
-        }
-        
-        # Palabras clave para detectar género en síntomas
-        self.gender_keywords = {
-            'female': [
-                'embarazo', 'embarazada', 'menstruación', 'regla', 'período',
-                'ovarios', 'útero', 'vaginal', 'menstrual', 'parto',
-                'lactancia', 'menopausia', 'embarazo', 'gestación'
-            ],
-            'male': [
-                'próstata', 'testículos', 'pene', 'esperma', 'eyaculación',
-                'erección', 'testicular', 'prostático'
-            ]
-        }
+        self.translator_es_to_en = GoogleTranslator(source='es', target='en')
+        self.translator_en_to_es = GoogleTranslator(source='en', target='es')
+        print("✅ Translator Manager inicializado con deep-translator")
     
-    def translate_to_english(self, text):
-        """Traducir texto al inglés"""
+    def translate_to_english(self, text_spanish):
+        """Traducir texto de español a inglés"""
         try:
-            if not text or text.strip() == '':
-                return "patient presents with general symptoms"
+            if not text_spanish or not isinstance(text_spanish, str):
+                return ""
             
-            # Detectar si ya está en inglés
-            detected = self.translator.detect(text)
-            if detected.lang == 'en':
-                return text
+            # Limpiar el texto
+            text_cleaned = text_spanish.strip()
+            if len(text_cleaned) == 0:
+                return ""
             
-            # Traducir al inglés
-            translated = self.translator.translate(text, src='es', dest='en')
-            return translated.text
+            # Traducir
+            result = self.translator_es_to_en.translate(text_cleaned)
             
+            if result:
+                print(f"🔄 Traducido ES→EN: '{text_spanish[:50]}...' → '{result[:50]}...'")
+                return result
+            else:
+                print(f"⚠️ No se pudo traducir: {text_spanish}")
+                return text_spanish  # Retornar original si falla
+                
         except Exception as e:
-            logging.error(f"Error en traducción a inglés: {e}")
-            return f"patient experiences {text}"  # Fallback simple
+            logging.error(f"Error traduciendo a inglés: {e}")
+            print(f"❌ Error traduciendo: {e}")
+            return text_spanish  # Retornar original si hay error
     
-    def translate_to_spanish(self, text):
-        """Traducir texto al español"""
+    def translate_to_spanish(self, text_english):
+        """Traducir texto de inglés a español"""
         try:
-            if not text:
-                return "Síntomas generales"
+            if not text_english or not isinstance(text_english, str):
+                return ""
             
-            # Detectar si ya está en español
-            detected = self.translator.detect(text)
-            if detected.lang == 'es':
-                return text
+            # Limpiar el texto
+            text_cleaned = text_english.strip()
+            if len(text_cleaned) == 0:
+                return ""
             
-            # Traducir al español
-            translated = self.translator.translate(text, src='en', dest='es')
-            return translated.text
+            # Traducir
+            result = self.translator_en_to_es.translate(text_cleaned)
             
+            if result:
+                print(f"🔄 Traducido EN→ES: '{text_english[:50]}...' → '{result[:50]}...'")
+                return result
+            else:
+                print(f"⚠️ No se pudo traducir: {text_english}")
+                return text_english  # Retornar original si falla
+                
         except Exception as e:
-            logging.error(f"Error en traducción a español: {e}")
-            # Mapeo manual básico como fallback
-            basic_translations = {
-                'Diabetes': 'Diabetes',
-                'Hypertension': 'Hipertensión',
-                'Migraine': 'Migraña',
-                'Asthma': 'Asma',
-                'Gastroenteritis': 'Gastroenteritis',
-                'Bronchitis': 'Bronquitis',
-                'Arthritis': 'Artritis',
-                'Allergy': 'Alergia',
-                'Pneumonia': 'Neumonía',
-                'Urinary tract infection': 'Infección del tracto urinario'
-            }
-            return basic_translations.get(text, text)
-    
-    def categorize_age(self, age):
-        """Categorizar edad en rango"""
-        try:
-            age_num = int(age)
-            for (min_age, max_age), range_str in self.age_ranges.items():
-                if min_age <= age_num <= max_age:
-                    return range_str
-            return "25-34"  # Default
-        except:
-            return "25-34"  # Default si no se puede parsear
-    
-    def detect_gender(self, symptoms_text):
-        """Detectar género basado en síntomas"""
-        symptoms_lower = symptoms_text.lower()
-        
-        # Buscar palabras clave femeninas
-        female_score = sum(1 for keyword in self.gender_keywords['female'] 
-                          if keyword in symptoms_lower)
-        
-        # Buscar palabras clave masculinas  
-        male_score = sum(1 for keyword in self.gender_keywords['male']
-                        if keyword in symptoms_lower)
-        
-        if female_score > male_score:
-            return "Female"
-        elif male_score > female_score:
-            return "Male"
-        else:
-            return "Unknown"  # No se puede determinar
+            logging.error(f"Error traduciendo a español: {e}")
+            print(f"❌ Error traduciendo: {e}")
+            return text_english  # Retornar original si hay error
     
     def extract_age_from_text(self, text):
-        """Extraer edad del texto si se menciona"""
-        age_patterns = [
-            r'(\d+)\s*años?',
-            r'edad\s*(\d+)',
-            r'tengo\s*(\d+)',
-            r'soy\s*de\s*(\d+)',
-            r'(\d+)\s*years?',
-            r'age\s*(\d+)'
-        ]
-        
-        for pattern in age_patterns:
-            match = re.search(pattern, text.lower())
-            if match:
-                age = int(match.group(1))
-                if 0 <= age <= 120:  # Validar rango razonable
-                    return age
-        
-        return None
+        """Extraer edad del texto en español"""
+        try:
+            # Patrones para detectar edad
+            age_patterns = [
+                r'tengo (\d+) años',
+                r'(\d+) años',
+                r'edad (\d+)',
+                r'soy de (\d+)',
+                r'(\d+) años de edad'
+            ]
+            
+            for pattern in age_patterns:
+                match = re.search(pattern, text.lower())
+                if match:
+                    age = int(match.group(1))
+                    if 1 <= age <= 120:  # Validar rango razonable
+                        print(f"📅 Edad extraída: {age} años")
+                        return age
+            
+            return None
+            
+        except Exception as e:
+            logging.error(f"Error extrayendo edad: {e}")
+            return None
+    
+    def categorize_age(self, age):
+        """Categorizar edad en rangos"""
+        try:
+            if age < 18:
+                return "0-17"
+            elif age < 25:
+                return "18-24"
+            elif age < 35:
+                return "25-34"
+            elif age < 45:
+                return "35-44"
+            elif age < 55:
+                return "45-54"
+            elif age < 65:
+                return "55-64"
+            else:
+                return "65+"
+        except:
+            return "25-34"  # Categoría por defecto
+    
+    def detect_gender(self, text):
+        """Detectar género desde el texto en español"""
+        try:
+            text_lower = text.lower()
+            
+            # Patrones para detectar género femenino
+            female_patterns = [
+                r'\bestoy embarazada\b',
+                r'\bmenstruación\b',
+                r'\bmenstrual\b',
+                r'\bovarios\b',
+                r'\bútero\b',
+                r'\bmenopausia\b',
+                r'\bginecológico\b',
+                r'\bsoy mujer\b',
+                r'\bsoy femenina\b',
+                r'\bestoy lactando\b'
+            ]
+            
+            # Patrones para detectar género masculino
+            male_patterns = [
+                r'\bpróstata\b',
+                r'\btestículos\b',
+                r'\bsoy hombre\b',
+                r'\bsoy masculino\b',
+                r'\bandrológico\b'
+            ]
+            
+            # Buscar patrones femeninos
+            for pattern in female_patterns:
+                if re.search(pattern, text_lower):
+                    print(f"👩 Género detectado: Female (patrón: {pattern})")
+                    return "Female"
+            
+            # Buscar patrones masculinos
+            for pattern in male_patterns:
+                if re.search(pattern, text_lower):
+                    print(f"👨 Género detectado: Male (patrón: {pattern})")
+                    return "Male"
+            
+            print("❓ Género no detectado, usando Unknown")
+            return "Unknown"
+            
+        except Exception as e:
+            logging.error(f"Error detectando género: {e}")
+            return "Unknown"
 
 # Instancia global
 translator_manager = TranslatorManager()
