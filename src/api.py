@@ -692,3 +692,40 @@ def verify_recommendations():
         
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+@api_bp.route('/predict-v11', methods=['POST'])
+def predict_v11():
+    """Predicción v11 optimizada para memoria limitada"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({"error": "No se enviaron datos"}), 400
+        
+        symptoms = data.get('symptoms', '')
+        age = data.get('age')
+        gender = data.get('gender')
+        
+        if not symptoms:
+            return jsonify({"error": "Campo 'symptoms' es requerido"}), 400
+        
+        # Usar predicción simple para memoria limitada
+        from src.model_loader_v11 import modelo_v11_global
+        
+        if not modelo_v11_global.modelo_cargado:
+            return jsonify({"error": "Modelo no disponible"}), 500
+        
+        result = modelo_v11_global.predict_simple(symptoms, age, gender)
+        
+        return jsonify({
+            "success": True,
+            "result": result,
+            "metadata": {
+                "version": "v11_ligero",
+                "optimizado_para": "Render Free 512MB"
+            }
+        })
+        
+    except Exception as e:
+        logging.error(f"Error en /predict-v11: {e}")
+        return jsonify({"error": str(e)}), 500

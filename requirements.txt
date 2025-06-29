@@ -14,8 +14,8 @@ joblib==1.5.1
 # === NLP AVANZADO (para modelo v11) ===
 nltk==3.9.1
 sentence-transformers==3.0.1
-torch==2.7.1
-transformers==4.53.0
+#torch==2.7.1
+#transformers==4.53.0
 tokenizers==0.21.2
 huggingface-hub==0.33.1
 
