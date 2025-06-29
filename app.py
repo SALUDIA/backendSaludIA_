@@ -31,6 +31,20 @@ def create_app():
     # Registrar blueprints
     app.register_blueprint(api_bp, url_prefix='/api')
     
+    # NUEVO: Cargar modelo v11 al inicio
+    print("🚀 Iniciando carga de modelos...")
+    try:
+        from src.model_loader_v11 import cargar_modelo_v11
+        modelo_v11 = cargar_modelo_v11()
+        if modelo_v11.modelo_xgb is not None:
+            print("✅ Modelo v11 cargado exitosamente en la aplicación")
+        else:
+            print("⚠️ Modelo v11 no se pudo cargar completamente")
+    except Exception as e:
+        print(f"❌ Error cargando modelo v11: {e}")
+    
+    print("✅ Aplicación Flask inicializada con soporte para modelo v11")
+    
     return app
 
 # Crear aplicación
@@ -41,18 +55,26 @@ def home():
     """Ruta principal"""
     return {
         "message": "SaludIA Backend API",
-        "version": "2.0 Producción",
+        "version": "2.1 Producción con Modelo v11",  # Actualizar versión
         "status": "running",
-        "environment": os.getenv('FLASK_ENV', 'development')
+        "environment": os.getenv('FLASK_ENV', 'development'),
+        "new_features": "🚀 Modelo v11 con NLP semántico avanzado disponible en /api/predict-v11"
     }
 
 @app.route('/health')
 def health():
     """Health check para Render"""
+    try:
+        from src.model_loader_v11 import modelo_v11_global
+        modelo_v11_status = modelo_v11_global is not None and modelo_v11_global.modelo_xgb is not None
+    except:
+        modelo_v11_status = False
+    
     return {
         "status": "healthy",
         "service": "saludia-backend",
-        "database": "connected" if Config.FORCE_AIVEN else "local"
+        "database": "connected" if Config.FORCE_AIVEN else "local",
+        "modelo_v11": "loaded" if modelo_v11_status else "unavailable"
     }
 
 if __name__ == '__main__':
