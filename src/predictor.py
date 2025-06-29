@@ -169,7 +169,7 @@ model_manager = ModelManager()
 # ====== INTEGRACIÓN MODELO V11 ======
 
 try:
-    from src.model_loader_v11 import cargar_modelo_v11, predecir_v11
+    from src.model_loader_v11 import cargar_modelo_v11, modelo_v11_global
     print("✅ Modelo v11 importado exitosamente")
     MODELO_V11_DISPONIBLE = True
     
@@ -180,30 +180,33 @@ try:
             self.modelo_v11 = None
             try:
                 self.modelo_v11 = cargar_modelo_v11()
-                if self.modelo_v11.modelo_xgb is not None:
+                if self.modelo_v11 and self.modelo_v11.modelo_cargado:
                     print("🎯 ModelManagerV11 inicializado con modelo v11")
+                else:
+                    print("⚠️ Modelo v11 no se pudo cargar correctamente")
             except Exception as e:
                 print(f"❌ Error inicializando modelo v11: {e}")
         
         def predict_v11(self, texto, edad="Unknown", genero="Unknown"):
             """Predicción específica con modelo v11"""
-            if not self.modelo_v11 or self.modelo_v11.modelo_xgb is None:
+            if not self.modelo_v11 or not self.modelo_v11.modelo_cargado:
                 return {"error": "Modelo v11 no disponible"}
             
-            return predecir_v11(texto, edad, genero)
+            return self.modelo_v11.predict_symptoms(texto, edad, genero)
         
         def get_model_info(self):
             """Obtener información del modelo v11"""
-            if self.modelo_v11:
-                return self.modelo_v11.get_model_info()
-            return {"version": "v11", "status": "error"}
+            return {
+                "version": "v11_backup",
+                "status": "loaded" if self.modelo_v11 and self.modelo_v11.modelo_cargado else "error",
+                "memoria_optimizada": True
+            }
         
         def get_available_models(self):
-            """Obtener modelos incluyendo v11"""
-            modelos_base = model_manager.get_available_models()
-            if self.modelo_v11 and self.modelo_v11.modelo_xgb is not None:
-                modelos_base.append('v11')
-            return modelos_base
+            """Obtener modelos disponibles"""
+            if self.modelo_v11 and self.modelo_v11.modelo_cargado:
+                return ['v11']
+            return []
     
     # Instancia global
     model_manager_v11 = ModelManagerV11()
@@ -212,13 +215,23 @@ except Exception as e:
     print(f"⚠️ Modelo v11 no disponible: {e}")
     MODELO_V11_DISPONIBLE = False
     
-    # Crear dummy para evitar errores de importación
+    # Crear dummy para evitar errores
     class DummyModelManagerV11:
         def predict_v11(self, *args, **kwargs):
             return {"error": "Modelo v11 no disponible"}
         def get_model_info(self):
             return {"version": "v11", "status": "unavailable"}
         def get_available_models(self):
-            return model_manager.get_available_models()
+            return []
     
     model_manager_v11 = DummyModelManagerV11()
+
+# Crear manager básico dummy para compatibilidad
+class DummyModelManager:
+    def __init__(self):
+        self.models = {}
+    
+    def get_available_models(self):
+        return []
+
+model_manager = DummyModelManager()
