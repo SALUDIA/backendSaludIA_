@@ -12,12 +12,12 @@ xgboost==3.0.2
 joblib==1.5.1
 
 # === NLP AVANZADO (para modelo v11) ===
-nltk==3.8.1
-torch==2.0.1
-transformers==4.21.3
-tokenizers==0.13.3
-huggingface-hub==0.16.4
-sentence-transformers==2.2.2
+nltk==3.9.1
+sentence-transformers==4.1.0
+torch==2.7.1
+transformers==4.53.0
+tokenizers==0.21.2
+huggingface-hub==0.33.1
 
 # === TRADUCCIONES ===
 deep-translator==1.11.4
