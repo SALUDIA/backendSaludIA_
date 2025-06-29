@@ -20,7 +20,6 @@ tokenizers==0.21.2
 huggingface-hub==0.33.1
 
 # === TRADUCCIONES ===
-googletrans==4.0.0rc1
 deep-translator==1.11.4
 
 # === DATABASE ===
