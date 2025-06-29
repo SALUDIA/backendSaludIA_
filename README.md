@@ -227,22 +227,6 @@ npm install
 npm start
 ```
 
-### 🐳 **Docker Setup (Opcional)**
-
-```bash
-# Backend
-cd Backend
-docker build -t saludia-backend .
-docker run -p 5000:5000 saludia-backend
-
-# Frontend
-cd Frontend
-docker build -t saludia-frontend .
-docker run -p 3000:3000 saludia-frontend
-```
-
----
-
 ## 📱 Uso
 
 ### 🔥 **Ejemplo Rápido**
