@@ -18,7 +18,7 @@ torch==2.0.1
 
 # === TRANSFORMERS LIGEROS (CRÍTICO) ===
 transformers==4.21.3
-tokenizers==0.13.3
+tokenizers==0.21.2
 sentence-transformers==2.2.2
 huggingface-hub==0.16.4
 
