@@ -1,19 +1,40 @@
+# === CORE FRAMEWORK ===
 Flask==2.3.3
 flask-cors==4.0.0
-numpy==2.2.6
-pandas=2.3.0
-scikit-learn==1.6.1
-joblib==1.5.1
-nltk==3.9.1
-googletrans==4.0.0rc1
-python-dotenv==1.0.0
-PyMySQL=1.1.0
-cryptography==41.0.7
-xgboost==3.0.2
-scipy=1.15.3
-dotenv==0.9.9
-gdown==5.2.0
-matplotlib==3.10.3
-mysql-connector-python==8.2.0
-imblearn==0.0
 gunicorn==21.2.0
+
+# === DATA PROCESSING ===
+numpy==2.2.6
+pandas==2.3.0
+scipy==1.15.3
+
+# === MACHINE LEARNING ===
+scikit-learn==1.6.1
+xgboost==3.0.2
+joblib==1.5.1
+
+# === NLP AVANZADO (para modelo v11) ===
+nltk==3.9.1
+sentence-transformers==4.1.0
+torch==2.7.1
+transformers==4.53.0
+tokenizers==0.21.2
+huggingface-hub==0.33.1
+
+# === TRADUCCIONES ===
+googletrans==4.0.0rc1
+deep-translator==1.11.4
+
+# === DATABASE ===
+PyMySQL==1.1.0
+mysql-connector-python==8.2.0
+cryptography==41.0.7
+
+# === CONFIGURATION ===
+python-dotenv==1.0.0
+dotenv==0.9.9
+
+# === UTILITIES ===
+requests==2.31.0
+tqdm==4.67.1
+regex==2024.11.6
