@@ -1,9 +1,9 @@
+# Desarrollo
 .env
 .env.local
 .git
 .gitignore
 README.md
-Dockerfile
 .dockerignore
 __pycache__
 *.pyc
@@ -17,4 +17,58 @@ venv/
 *.log
 .DS_Store
 Thumbs.db
-node_modules/
+
+# ELIMINAR TODOS LOS MODELOS EXCEPTO V11
+models/modelo_v6.pkl
+models/modelo_v7.pkl
+models/modelo_v8.pkl
+models/modelo_v8_mejorado.pkl
+models/modelo_diagnostico_v6_xgboost.pkl
+models/modelo_diagnostico_v7_optimizado.pkl
+models/modelo_diagnostico_v8_reentrenado.pkl
+models/modelo_diagnostico_v8_mejorado.pkl
+models/modelo_diagnostico_v9_final.pkl
+models/preprocesadores_v6.pkl
+models/preprocesadores_v7.pkl
+models/preprocesadores_v8_reentrenado.pkl
+models/preprocesadores_v8_mejorado.pkl
+models/preprocesadores_v9_final.pkl
+models/tfidf_vectorizer_v6.pkl
+models/tfidf_vectorizer_v7.pkl
+models/tfidf_vectorizer_v8.pkl
+models/age_encoder_v6.pkl
+models/age_encoder_v7.pkl
+models/age_encoder_v8.pkl
+models/gender_encoder_v6.pkl
+models/gender_encoder_v7.pkl
+models/gender_encoder_v8.pkl
+
+# MANTENER SOLO:
+# models/v11_components/
+
+# Datos
+*.csv
+*.json
+data/
+datasets/
+training_data/
+
+# Notebooks
+*.ipynb
+.ipynb_checkpoints/
+
+# Archivos temporales
+tmp/
+temp/
+*.tmp
+*.bak
+
+# Testing
+tests/
+test_*.py
+*_test.py
+
+# Documentation
+docs/
+*.md
+LICENSE
