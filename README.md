@@ -399,15 +399,9 @@ Memoria RAM:         ~512MB por worker
 - ![MySQL](https://img.shields.io/badge/MySQL-4479A1?style=flat-square&logo=mysql&logoColor=white) **MySQL** - Base de datos
 - ![Pandas](https://img.shields.io/badge/Pandas-150458?style=flat-square&logo=pandas&logoColor=white) **Pandas** - Manipulación de datos
 
-### 📱 **Frontend**
-- ![Angular](https://img.shields.io/badge/Angular-DD0031?style=for-the-badge&logo=angular&logoColor=white) **Angular 19** - Framework desarrollo web
-- ![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=flat-square&logo=typescript&logoColor=white) **TypeScript** - Lenguaje tipado
-- ![Expo](https://img.shields.io/badge/Expo-000020?style=flat-square&logo=expo&logoColor=white) **Expo** - Herramientas de desarrollo
-
 ### ☁️ **Infraestructura**
 - ![Render](https://img.shields.io/badge/Render-46E3B7?style=flat-square&logo=render&logoColor=white) **Render** - Hosting backend
 - ![Aiven](https://img.shields.io/badge/Aiven-FF6B35?style=flat-square&logo=aiven&logoColor=white) **Aiven** - Base de datos en la nube
-- ![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white) **Docker** - Containerización
 - ![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat-square&logo=github&logoColor=white) **GitHub** - Control de versiones
 
 ---
