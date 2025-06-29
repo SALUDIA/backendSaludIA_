@@ -25,8 +25,12 @@ ENV FLASK_ENV=production
 ENV PYTHONPATH=/app/src
 ENV PYTHONUNBUFFERED=1
 
-# Exponer puerto
-EXPOSE 10000
+# Crear usuario no-root para seguridad
+RUN adduser --disabled-password --gecos '' appuser && chown -R appuser /app
+USER appuser
 
-# Comando de inicio
-CMD ["gunicorn", "--bind", "0.0.0.0:10000", "--workers", "1", "--timeout", "120", "app:app"]
+# Exponer puerto (dinámico para Render)
+EXPOSE $PORT
+
+# Comando de inicio (usar variable PORT de Render)
+CMD gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 120 --access-logfile - --error-logfile - app:app
