@@ -1,48 +1,38 @@
-# Imagen base optimizada
 FROM python:3.10.2-slim
 
-# Instalar dependencias del sistema mínimas
+# Instalar dependencias del sistema
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# Establecer directorio de trabajo
 WORKDIR /app
 
-# Copiar requirements optimizado SOLO para v11
+# Copiar requirements
 COPY requirements.txt .
 
-# Instalar dependencias con optimizaciones extremas
+# Instalar PyTorch CPU-only PRIMERO (separado)
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt && \
-    pip cache purge && \
-    find /usr/local/lib/python3.10 -name "*.pyc" -delete && \
-    find /usr/local/lib/python3.10 -name "__pycache__" -type d -exec rm -rf {} + || true
+    pip install --no-cache-dir torch==2.0.1 --index-url https://download.pytorch.org/whl/cpu
+
+# Instalar el resto de dependencias
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip cache purge
 
 # Copiar código fuente
 COPY . .
 
-# Variables de entorno optimizadas
+# Variables de entorno
 ENV FLASK_ENV=production
 ENV PYTHONPATH=/app/src
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
-ENV TRANSFORMERS_CACHE=/tmp/transformers_cache
-ENV HF_HOME=/tmp/hf_cache
-ENV TOKENIZERS_PARALLELISM=false
 
-# Crear usuario no-root
-RUN adduser --disabled-password --gecos '' appuser && \
-    chown -R appuser /app && \
-    mkdir -p /tmp/transformers_cache /tmp/hf_cache && \
-    chown -R appuser /tmp/transformers_cache /tmp/hf_cache
-
+# Usuario no-root
+RUN adduser --disabled-password --gecos '' appuser && chown -R appuser /app
 USER appuser
 
-# Puerto
 EXPOSE 10000
 
-# Comando de inicio optimizado para v11
-CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-10000} --workers 1 --timeout 300 --max-requests 50 --max-requests-jitter 10 --preload app:app"]
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-10000} --workers 1 --timeout 180 app:app"]
