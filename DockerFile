@@ -1,0 +1,32 @@
+# Usar imagen Python liviana
+FROM python:3.10.2-slim
+
+# Instalar dependencias del sistema
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Establecer directorio de trabajo
+WORKDIR /app
+
+# Copiar requirements primero (para cache de Docker)
+COPY requirements.txt .
+
+# Instalar dependencias Python con optimizaciones
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copiar código fuente
+COPY . .
+
+# Variables de entorno por defecto
+ENV FLASK_ENV=production
+ENV PYTHONPATH=/app/src
+ENV PYTHONUNBUFFERED=1
+
+# Exponer puerto
+EXPOSE 10000
+
+# Comando de inicio
+CMD ["gunicorn", "--bind", "0.0.0.0:10000", "--workers", "1", "--timeout", "120", "app:app"]
