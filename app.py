@@ -74,9 +74,21 @@ def health():
         "status": "healthy",
         "service": "saludia-backend",
         "database": "connected" if Config.FORCE_AIVEN else "local",
-        "modelo_v11": "loaded" if modelo_v11_status else "unavailable"
+        "modelo_v11": "loaded" if modelo_v11_status else "unavailable",
+        "python_version": "3.10.2",
+        "port": os.environ.get('PORT', 10000)
     }
 
-if __name__ == '__main__':
-    port = int(os.getenv('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=Config.DEBUG)
+# Para Render - importante
+if __name__ == "__main__":
+    port = int(os.environ.get('PORT', 10000))
+    host = '0.0.0.0'  # Forzar para Render
+    
+    print(f"🚀 Iniciando servidor en {host}:{port}")
+    
+    app.run(
+        host=host,
+        port=port,
+        debug=os.environ.get('DEBUG_MODE', 'false').lower() == 'true',
+        threaded=True
+    )
