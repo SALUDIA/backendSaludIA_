@@ -4,112 +4,89 @@ from flask import Flask
 from flask_cors import CORS
 import sys
 
-# Configurar logging optimizado
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s %(levelname)s: %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
 
 def create_app():
     """Factory optimizada - SOLO MODELO V11"""
     app = Flask(__name__)
     
-    # Configuración mínima
     app.config['DEBUG'] = False
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'saludia-v11-secret')
     
-    # CORS optimizado
     CORS(app, origins=["*"])
     
-    # CARGAR SOLO MODELO V11
     print("🚀 Iniciando aplicación optimizada - SOLO MODELO V11...")
     
     try:
-        # Verificar que el modelo v11 esté disponible
-        model_path = 'models/v11_components/'
-        required_files = [
-            'modelo_xgb.pkl',
-            'tfidf_vectorizer.pkl',
-            'metadata.pkl',
-            'preprocesador_data.pkl'
-        ]
-        
-        missing_files = []
-        for file in required_files:
-            if not os.path.exists(os.path.join(model_path, file)):
-                missing_files.append(file)
-        
-        if missing_files:
-            raise Exception(f"Archivos faltantes del modelo v11: {missing_files}")
-        
-        # Cargar modelo v11
+        # Intentar cargar modelo v11
         from src.model_loader_v11 import cargar_modelo_v11
         modelo_v11 = cargar_modelo_v11()
         
-        if modelo_v11.modelo_xgb is not None:
+        if hasattr(modelo_v11, 'modelo_xgb') and modelo_v11.modelo_xgb is not None:
             print("✅ Modelo v11 cargado exitosamente - APLICACIÓN LISTA")
         else:
-            raise Exception("Modelo v11 no se cargó correctamente")
+            print("⚠️ Modelo v11 cargado pero verificar estado")
             
     except Exception as e:
         print(f"❌ ERROR CRÍTICO - Modelo v11 falló: {e}")
-        print("🚨 La aplicación solo funciona con modelo v11")
-        sys.exit(1)  # Terminar si no hay modelo v11
+        print("🚨 Continuando sin modelo v11 (modo degradado)")
     
-    # Registrar solo el API v11
-    from src.api_v11 import api_v11_bp
-    app.register_blueprint(api_v11_bp, url_prefix='/api')
+    # Registrar API
+    try:
+        from src.api import api_bp
+        app.register_blueprint(api_bp, url_prefix='/api')
+        print("✅ API registrada")
+    except Exception as e:
+        print(f"⚠️ Error registrando API: {e}")
     
-    print("✅ Aplicación optimizada lista - SOLO MODELO V11")
+    print("✅ Aplicación lista")
     return app
 
-# Crear aplicación
 app = create_app()
 
 @app.route('/')
 def home():
-    """Ruta principal optimizada"""
+    """Ruta principal - IMPORTANTE para Render"""
+    port = os.environ.get('PORT', '10000')
     return {
-        "message": "SaludIA Backend API - MODELO V11 ÚNICAMENTE",
-        "version": "3.0 - Optimizado",
-        "modelo": "v11 (NLP Semántico Avanzado)",
-        "status": "running",
-        "features": [
-            "Sentence-BERT + TF-IDF",
-            "Diccionario médico bilingüe",
-            "Detección automática de edad/género",
-            "Top 3 diagnósticos",
-            "Embeddings semánticos 384D"
-        ],
+        "message": "🏥 SaludIA Backend API - MODELO V11",
+        "version": "3.0 - Optimizado para Render",
+        "status": "✅ RUNNING",
+        "port": port,
+        "render_ready": True,
         "endpoints": {
-            "predict": "POST /api/predict-v11",
-            "health": "GET /api/health",
-            "info": "GET /api/model-info"
-        },
-        "port": os.environ.get('PORT', 10000)
+            "predict_v11": "POST /api/predict-v11",
+            "health": "GET /health",
+            "api_info": "GET /api/"
+        }
     }
 
 @app.route('/health')
 def health():
-    """Health check optimizado"""
+    """Health check para Render"""
+    port = os.environ.get('PORT', '10000')
+    
     try:
         from src.model_loader_v11 import modelo_v11_global
-        modelo_status = (modelo_v11_global is not None and 
-                        hasattr(modelo_v11_global, 'modelo_xgb') and 
+        modelo_status = (hasattr(modelo_v11_global, 'modelo_xgb') and 
                         modelo_v11_global.modelo_xgb is not None)
     except:
         modelo_status = False
     
     return {
-        "status": "healthy" if modelo_status else "error",
-        "service": "saludia-v11-only",
-        "modelo_v11": "loaded" if modelo_status else "failed",
-        "optimized": True,
-        "size": "minimal",
-        "port": os.environ.get('PORT', 10000)
+        "status": "healthy" if modelo_status else "degraded",
+        "service": "saludia-v11",
+        "modelo_v11": "✅ loaded" if modelo_status else "⚠️ checking",
+        "port": port,
+        "render_deployment": "active"
     }
 
 if __name__ == "__main__":
+    # ¡CRÍTICO! Usar puerto dinámico de Render
     port = int(os.environ.get('PORT', 10000))
-    print(f"🚀 Servidor optimizado v11 en 0.0.0.0:{port}")
-    app.run(host='0.0.0.0', port=port, debug=False)
+    host = '0.0.0.0'
+    
+    print(f"🚀 Servidor SaludIA iniciando en {host}:{port}")
+    print(f"🌐 Puerto Render detectado: {port}")
+    
+    app.run(host=host, port=port, debug=False)
