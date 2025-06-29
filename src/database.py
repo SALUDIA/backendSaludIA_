@@ -10,25 +10,61 @@ class DatabaseManager:
     
     def __init__(self):
         self.connection = None
-        self.config = Config.get_db_config()
+        # Imprimir configuración al inicializar
+        Config.print_config()
     
     def connect(self):
         """Conectar a la base de datos con manejo de SSL"""
         try:
-            self.connection = mysql.connector.connect(**self.config)
+            config = Config.get_db_config()
+            
+            print(f"🔌 Intentando conectar a BD:")
+            print(f"   Host: {config['host']}:{config['port']}")
+            print(f"   Usuario: {config['user']}")
+            print(f"   Base: {config['database']}")
+            print(f"   SSL: {'Habilitado' if not config.get('ssl_disabled', True) else 'Deshabilitado'}")
+            
+            self.connection = mysql.connector.connect(**config)
+            
             if self.connection.is_connected():
-                print(f"✅ Conectado a BD: {self.config['host']}:{self.config['port']}")
+                server_info = self.connection.get_server_info()
+                print(f"✅ Conexión a BD exitosa - MySQL Server {server_info}")
                 return True
+                
         except Error as e:
-            logging.error(f"❌ Error conectando a BD: {e}")
             print(f"❌ Error conectando a BD: {e}")
+            logging.error(f"❌ Error conectando a BD: {e}")
             return False
+        
+        return False
     
     def disconnect(self):
         """Desconectar de la base de datos"""
         if self.connection and self.connection.is_connected():
             self.connection.close()
             print("🔌 Desconectado de BD")
+    
+    def test_connection(self):
+        """Probar conexión a la base de datos"""
+        try:
+            if self.connect():
+                cursor = self.connection.cursor()
+                cursor.execute("SELECT VERSION() as version, NOW() as current_time")
+                result = cursor.fetchone()
+                cursor.close()
+                self.disconnect()
+                
+                return {
+                    "status": "success", 
+                    "message": "Conexión exitosa", 
+                    "mysql_version": result[0],
+                    "current_time": result[1].isoformat() if result[1] else None
+                }
+        except Exception as e:
+            return {
+                "status": "error", 
+                "message": str(e)
+            }
     
     def _convert_to_mysql_type(self, value):
         """Convertir tipos de Python/NumPy a tipos compatibles con MySQL"""
@@ -62,92 +98,12 @@ class DatabaseManager:
         # Para cualquier otro tipo, convertir a string
         return str(value)
     
-    def test_connection(self):
-        """Probar conexión a la base de datos"""
-        try:
-            if self.connect():
-                cursor = self.connection.cursor()
-                cursor.execute("SELECT 1")
-                result = cursor.fetchone()
-                cursor.close()
-                self.disconnect()
-                return {"status": "success", "message": "Conexión exitosa", "result": result}
-        except Exception as e:
-            return {"status": "error", "message": str(e)}
-    
-    def create_tables(self):
-        """Crear tablas necesarias"""
-        if not self.connect():
-            return False
-        
-        try:
-            cursor = self.connection.cursor()
-            
-            # Tabla de predicciones
-            create_predictions = """
-            CREATE TABLE IF NOT EXISTS predictions (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                symptoms TEXT,
-                diagnosis VARCHAR(255),
-                confidence DECIMAL(5,2),
-                model_version VARCHAR(50),
-                age_detected INT,
-                age_range VARCHAR(20),
-                gender VARCHAR(20),
-                gender_origin VARCHAR(20),
-                symptoms_processed TEXT,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-            """
-            
-            # Tabla de diagnósticos
-            create_diagnoses = """
-            CREATE TABLE IF NOT EXISTS diagnoses (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                name_en VARCHAR(255) NOT NULL UNIQUE,
-                name_es VARCHAR(255) NOT NULL,
-                description_es TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-            """
-            
-            # Tabla de recomendaciones
-            create_recommendations = """
-            CREATE TABLE IF NOT EXISTS recommendations (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                diagnosis_id INT NOT NULL,
-                recommendation_text TEXT NOT NULL,
-                category VARCHAR(100),
-                priority INT DEFAULT 1,
-                is_active BOOLEAN DEFAULT TRUE,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (diagnosis_id) REFERENCES diagnoses(id) ON DELETE CASCADE
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-            """
-            
-            cursor.execute(create_predictions)
-            cursor.execute(create_diagnoses)
-            cursor.execute(create_recommendations)
-            
-            self.connection.commit()
-            cursor.close()
-            print("✅ Tablas creadas exitosamente")
-            return True
-            
-        except Error as e:
-            logging.error(f"Error creando tablas: {e}")
-            print(f"❌ Error creando tablas: {e}")
-            return False
-        finally:
-            self.disconnect()
-    
     def log_prediction(self, symptoms, diagnosis, confidence, model_version, 
                       age_detected=None, age_range=None, gender=None, 
                       gender_origin=None, symptoms_processed=None):
         """Registrar predicción en BD con conversión de tipos"""
         if not self.connect():
+            print("⚠️ No se pudo conectar a BD para logging")
             return False
         
         try:
@@ -163,17 +119,6 @@ class DatabaseManager:
             gender_clean = self._convert_to_mysql_type(gender)
             gender_origin_clean = self._convert_to_mysql_type(gender_origin)
             symptoms_processed_clean = self._convert_to_mysql_type(symptoms_processed)
-            
-            # Debug: mostrar tipos convertidos
-            print(f"🔧 Tipos convertidos:")
-            print(f"   symptoms: {type(symptoms_clean)} = {symptoms_clean[:50] if symptoms_clean else None}...")
-            print(f"   diagnosis: {type(diagnosis_clean)} = {diagnosis_clean}")
-            print(f"   confidence: {type(confidence_clean)} = {confidence_clean}")
-            print(f"   model_version: {type(model_version_clean)} = {model_version_clean}")
-            print(f"   age_detected: {type(age_detected_clean)} = {age_detected_clean}")
-            print(f"   age_range: {type(age_range_clean)} = {age_range_clean}")
-            print(f"   gender: {type(gender_clean)} = {gender_clean}")
-            print(f"   gender_origin: {type(gender_origin_clean)} = {gender_origin_clean}")
             
             query = """
                 INSERT INTO predictions 
@@ -196,7 +141,6 @@ class DatabaseManager:
         except Error as e:
             logging.error(f"Error guardando predicción: {e}")
             print(f"❌ Error guardando predicción: {e}")
-            print(f"❌ Valores que causaron error: {values}")
             return False
         finally:
             self.disconnect()
@@ -204,6 +148,7 @@ class DatabaseManager:
     def get_recommendations(self, diagnosis_name):
         """Obtener recomendaciones de la BD por diagnóstico"""
         if not self.connect():
+            print("⚠️ No se pudo conectar a BD para recomendaciones")
             return []
         
         try:
@@ -211,7 +156,7 @@ class DatabaseManager:
             
             # Limpiar y convertir el nombre del diagnóstico
             diagnosis_clean = self._convert_to_mysql_type(diagnosis_name)
-            print(f"🔍 Buscando recomendaciones para: '{diagnosis_clean}' (tipo: {type(diagnosis_clean)})")
+            print(f"🔍 Buscando recomendaciones para: '{diagnosis_clean}'")
             
             query = """
                 SELECT r.recommendation_text, r.category, r.priority
@@ -233,131 +178,7 @@ class DatabaseManager:
         except Error as e:
             logging.error(f"Error obteniendo recomendaciones: {e}")
             print(f"❌ Error obteniendo recomendaciones: {e}")
-            print(f"❌ Diagnóstico que causó error: {diagnosis_name} (tipo: {type(diagnosis_name)})")
             return []
-        finally:
-            self.disconnect()
-    
-    def seed_diagnoses_and_recommendations(self):
-        """Poblar BD con diagnósticos y recomendaciones"""
-        if not self.connect():
-            return False
-        
-        try:
-            cursor = self.connection.cursor()
-            
-            # Limpiar datos existentes (opcional - descomenta si necesitas resetear)
-            # cursor.execute("DELETE FROM recommendations WHERE id > 0")
-            # cursor.execute("DELETE FROM diagnoses WHERE id > 0")
-            
-            # Datos de diagnósticos y recomendaciones
-            diagnoses_data = [
-                ("Diabetes", "Diabetes", "Enfermedad metabólica caracterizada por niveles altos de glucosa"),
-                ("Hypertension", "Hipertensión", "Presión arterial elevada de forma persistente"),
-                ("Migraine", "Migraña", "Tipo de dolor de cabeza recurrente e intenso"),
-                ("Asthma", "Asma", "Enfermedad respiratoria crónica"),
-                ("Gastroenteritis", "Gastroenteritis", "Inflamación del tracto gastrointestinal"),
-                ("Bronchitis", "Bronquitis", "Inflamación de los bronquios"),
-                ("Arthritis", "Artritis", "Inflamación de las articulaciones"),
-                ("Allergy", "Alergia", "Reacción del sistema inmunitario a sustancias"),
-                ("Pneumonia", "Neumonía", "Infección pulmonar"),
-                ("Urinary tract infection", "Infección del tracto urinario", "Infección en el sistema urinario"),
-                ("Central Nervous System/ Neuromuscular", "Sistema Nervioso Central/Neuromuscular", "Trastornos del sistema nervioso"),
-                ("Musculoskeletal", "Musculoesquelético", "Trastornos de músculos y huesos"),
-                ("Cardiovascular", "Cardiovascular", "Trastornos del corazón y vasos sanguíneos"),
-                ("Respiratory", "Respiratorio", "Trastornos del sistema respiratorio"),
-                ("Gastrointestinal", "Gastrointestinal", "Trastornos del sistema digestivo")
-            ]
-            
-            # Insertar diagnósticos
-            for name_en, name_es, description in diagnoses_data:
-                try:
-                    cursor.execute("""
-                        INSERT INTO diagnoses (name_en, name_es, description_es)
-                        VALUES (%s, %s, %s)
-                        ON DUPLICATE KEY UPDATE
-                        name_es = VALUES(name_es),
-                        description_es = VALUES(description_es)
-                    """, (name_en, name_es, description))
-                except Error as e:
-                    if "Duplicate entry" not in str(e):
-                        print(f"Error insertando {name_en}: {e}")
-            
-            # Recomendaciones por diagnóstico
-            recommendations_data = {
-                "Diabetes": [
-                    ("Controla regularmente tus niveles de glucosa", "medical", 1),
-                    ("Mantén una dieta balanceada baja en azúcares", "lifestyle", 2),
-                    ("Realiza ejercicio moderado regularmente", "lifestyle", 3)
-                ],
-                "Hypertension": [
-                    ("Reduce el consumo de sal en tu dieta", "diet", 1),
-                    ("Controla tu presión arterial regularmente", "monitoring", 2),
-                    ("Evita el estrés y practica técnicas de relajación", "lifestyle", 3)
-                ],
-                "Migraine": [
-                    ("Identifica y evita los desencadenantes de dolor", "prevention", 1),
-                    ("Mantén horarios regulares de sueño", "lifestyle", 2),
-                    ("Considera técnicas de manejo del estrés", "lifestyle", 3)
-                ],
-                "Asthma": [
-                    ("Evita los desencadenantes conocidos", "prevention", 1),
-                    ("Mantén tu inhalador siempre disponible", "medical", 2),
-                    ("Realiza ejercicios de respiración", "lifestyle", 3)
-                ],
-                "Central Nervous System/ Neuromuscular": [
-                    ("Mantén un estilo de vida activo y saludable", "lifestyle", 1),
-                    ("Evita factores que puedan empeorar los síntomas", "prevention", 2),
-                    ("Busca evaluación neurológica especializada", "medical", 3),
-                    ("Considera terapias de rehabilitación física", "treatment", 4)
-                ],
-                "Musculoskeletal": [
-                    ("Mantén una postura correcta", "lifestyle", 1),
-                    ("Realiza ejercicios de fortalecimiento", "exercise", 2),
-                    ("Aplica terapias de calor o frío según sea necesario", "treatment", 3)
-                ],
-                "Gastroenteritis": [
-                    ("Mantente hidratado bebiendo líquidos claros", "hydration", 1),
-                    ("Come alimentos blandos y fáciles de digerir", "diet", 2),
-                    ("Evita lácteos y alimentos grasos temporalmente", "diet", 3)
-                ],
-                "Pneumonia": [
-                    ("Descansa completamente y evita esfuerzos físicos", "rest", 1),
-                    ("Mantente bien hidratado", "hydration", 2),
-                    ("Busca atención médica inmediata si empeoran los síntomas", "medical", 3)
-                ]
-            }
-            
-            # Insertar recomendaciones
-            for diagnosis_name, recs in recommendations_data.items():
-                # Obtener ID del diagnóstico
-                cursor.execute("SELECT id FROM diagnoses WHERE name_en = %s", (diagnosis_name,))
-                diagnosis_result = cursor.fetchone()
-                if diagnosis_result:
-                    diagnosis_id = diagnosis_result[0]
-                    for rec_text, category, priority in recs:
-                        try:
-                            cursor.execute("""
-                                INSERT INTO recommendations 
-                                (diagnosis_id, recommendation_text, category, priority)
-                                VALUES (%s, %s, %s, %s)
-                                ON DUPLICATE KEY UPDATE
-                                recommendation_text = VALUES(recommendation_text),
-                                category = VALUES(category),
-                                priority = VALUES(priority)
-                            """, (diagnosis_id, rec_text, category, priority))
-                        except Error as e:
-                            print(f"Error insertando recomendación para {diagnosis_name}: {e}")
-            
-            self.connection.commit()
-            cursor.close()
-            print("✅ Diagnósticos y recomendaciones insertados/actualizados")
-            return True
-            
-        except Error as e:
-            logging.error(f"Error poblando BD: {e}")
-            print(f"❌ Error poblando BD: {e}")
-            return False
         finally:
             self.disconnect()
 

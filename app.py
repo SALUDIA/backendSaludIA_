@@ -52,7 +52,7 @@ def home():
         "message": "🏥 SaludIA Backend API - MODELO V11",
         "version": "3.0 - Optimizado para Render",
         "status": "✅ RUNNING",
-        "port": port | 10000,
+        "port": port,  # ← CORREGIDO: removido | 10000
         "render_ready": True,
         "endpoints": {
             "predict_v11": "POST /api/predict-v11",
@@ -80,6 +80,37 @@ def health():
         "port": port,
         "render_deployment": "active"
     }
+
+@app.route('/test-db')
+def test_db():
+    """Test de conexión a base de datos"""
+    try:
+        from src.database import db_manager
+        
+        # Mostrar configuración (sin password)
+        config_info = {
+            "host": os.environ.get('DB_HOST', 'NO DEFINIDO'),
+            "user": os.environ.get('DB_USER', 'NO DEFINIDO'),
+            "database": os.environ.get('DB_NAME', 'NO DEFINIDO'),
+            "port": os.environ.get('DB_PORT', 'NO DEFINIDO'),
+            "flask_env": os.environ.get('FLASK_ENV', 'NO DEFINIDO')
+        }
+        
+        # Probar conexión
+        connection_result = db_manager.test_connection()
+        
+        return {
+            "database_config": config_info,
+            "connection_test": connection_result,
+            "status": "connected" if connection_result.get("status") == "success" else "disconnected"
+        }
+        
+    except Exception as e:
+        return {
+            "error": str(e),
+            "status": "error",
+            "message": "Error probando conexión BD"
+        }, 500
 
 if __name__ == "__main__":
     # ¡CRÍTICO! Puerto dinámico de Render
