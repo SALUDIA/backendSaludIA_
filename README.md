@@ -227,22 +227,6 @@ npm install
 npm start
 ```
 
-### 🐳 **Docker Setup (Opcional)**
-
-```bash
-# Backend
-cd Backend
-docker build -t saludia-backend .
-docker run -p 5000:5000 saludia-backend
-
-# Frontend
-cd Frontend
-docker build -t saludia-frontend .
-docker run -p 3000:3000 saludia-frontend
-```
-
----
-
 ## 📱 Uso
 
 ### 🔥 **Ejemplo Rápido**
@@ -415,15 +399,9 @@ Memoria RAM:         ~512MB por worker
 - ![MySQL](https://img.shields.io/badge/MySQL-4479A1?style=flat-square&logo=mysql&logoColor=white) **MySQL** - Base de datos
 - ![Pandas](https://img.shields.io/badge/Pandas-150458?style=flat-square&logo=pandas&logoColor=white) **Pandas** - Manipulación de datos
 
-### 📱 **Frontend**
-- ![React Native](https://img.shields.io/badge/React_Native-20232A?style=flat-square&logo=react&logoColor=61DAFB) **React Native** - Framework móvil
-- ![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=flat-square&logo=typescript&logoColor=white) **TypeScript** - Lenguaje tipado
-- ![Expo](https://img.shields.io/badge/Expo-000020?style=flat-square&logo=expo&logoColor=white) **Expo** - Herramientas de desarrollo
-
 ### ☁️ **Infraestructura**
 - ![Render](https://img.shields.io/badge/Render-46E3B7?style=flat-square&logo=render&logoColor=white) **Render** - Hosting backend
 - ![Aiven](https://img.shields.io/badge/Aiven-FF6B35?style=flat-square&logo=aiven&logoColor=white) **Aiven** - Base de datos en la nube
-- ![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white) **Docker** - Containerización
 - ![GitHub](https://img.shields.io/badge/GitHub-181717?style=flat-square&logo=github&logoColor=white) **GitHub** - Control de versiones
 
 ---
@@ -559,7 +537,7 @@ Este proyecto está bajo la licencia **MIT License**. Ver [LICENSE](LICENSE) par
 ```
 MIT License
 
-Copyright (c) 2024 SaludIA Project
+Copyright (c) 2025 SaludIA Project
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -589,7 +567,7 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 ---
 
 <div align="center">
-  <h3>🏥 Construido con ❤️ para mejorar la salud global</h3>
+  <h3>🏥 Construido con ❤️ para mejorar la salud global. By PoPacket & IzpoDev</h3>
   <p><em>SaludIA - Donde la inteligencia artificial encuentra la medicina</em></p>
   
   <img src="https://img.shields.io/github/stars/tuusuario/SaludIA?style=social" alt="GitHub stars">

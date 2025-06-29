@@ -10,6 +10,7 @@ worker_connections = 1000
 timeout = 120  # Aumentado para carga de modelos
 keepalive = 2
 
+
 # Logging
 accesslog = "-"
 errorlog = "-"
@@ -29,3 +30,4 @@ max_requests_jitter = 100
 
 # Memory management para modelos ML
 worker_tmp_dir = "/dev/shm"
+
