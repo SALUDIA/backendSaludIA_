@@ -52,7 +52,7 @@ def home():
         "message": "🏥 SaludIA Backend API - MODELO V11",
         "version": "3.0 - Optimizado para Render",
         "status": "✅ RUNNING",
-        "port": port,
+        "port": port | 10000,
         "render_ready": True,
         "endpoints": {
             "predict_v11": "POST /api/predict-v11",
