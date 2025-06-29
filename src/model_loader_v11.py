@@ -129,7 +129,7 @@ class ModeloV11Fallback:
         except Exception as e:
             print(f"⚠️ Error entrenando modelo backup: {e}")
     
-    def load_components(self, base_path="modelo/modelo_v11_components"):
+    def load_components(self, base_path="modelo/modelo_v11_components"):  # ← CORREGIDO
         """Intentar cargar componentes reales, usar backup si fallan"""
         try:
             print(f"🔍 Intentando cargar desde: {base_path}")
@@ -145,8 +145,10 @@ class ModeloV11Fallback:
                     real_model = joblib.load(modelo_path)
                     self.modelo_xgb = real_model
                     print("✅ Modelo real v11 cargado")
-                except:
-                    print("⚠️ Error cargando modelo real, usando backup")
+                except Exception as e:
+                    print(f"⚠️ Error cargando modelo real: {e}, usando backup")
+            else:
+                print(f"⚠️ Archivo modelo no existe: {modelo_path}")
             
             # Intentar cargar TF-IDF real
             tfidf_path = os.path.join(base_path, "tfidf_vectorizer_v11.pkl")
@@ -155,8 +157,50 @@ class ModeloV11Fallback:
                     real_tfidf = joblib.load(tfidf_path)
                     self.tfidf_vectorizer = real_tfidf
                     print("✅ TF-IDF real cargado")
-                except:
-                    print("⚠️ Error cargando TF-IDF real, usando backup")
+                except Exception as e:
+                    print(f"⚠️ Error cargando TF-IDF real: {e}, usando backup")
+            else:
+                print(f"⚠️ Archivo TF-IDF no existe: {tfidf_path}")
+            
+            # Intentar cargar encoders reales
+            age_encoder_path = os.path.join(base_path, "age_encoder_v11.pkl")
+            gender_encoder_path = os.path.join(base_path, "gender_encoder_v11.pkl")
+            
+            if os.path.exists(age_encoder_path):
+                try:
+                    self.age_encoder = joblib.load(age_encoder_path)
+                    print("✅ Age encoder real cargado")
+                except Exception as e:
+                    print(f"⚠️ Error cargando age encoder: {e}")
+            
+            if os.path.exists(gender_encoder_path):
+                try:
+                    self.gender_encoder = joblib.load(gender_encoder_path)
+                    print("✅ Gender encoder real cargado")
+                except Exception as e:
+                    print(f"⚠️ Error cargando gender encoder: {e}")
+            
+            # Intentar cargar diccionarios reales
+            dict_path = os.path.join(base_path, "medical_dict_v11.pkl")
+            names_path = os.path.join(base_path, "diagnostic_names_v11.pkl")
+            
+            if os.path.exists(dict_path):
+                try:
+                    with open(dict_path, 'rb') as f:
+                        real_dict = pickle.load(f)
+                    self.medical_dict.update(real_dict)
+                    print("✅ Diccionario médico real cargado")
+                except Exception as e:
+                    print(f"⚠️ Error cargando diccionario: {e}")
+            
+            if os.path.exists(names_path):
+                try:
+                    with open(names_path, 'rb') as f:
+                        real_names = pickle.load(f)
+                    self.diagnostic_names.update(real_names)
+                    print("✅ Nombres de diagnósticos reales cargados")
+                except Exception as e:
+                    print(f"⚠️ Error cargando nombres: {e}")
             
             return True
             
@@ -164,6 +208,7 @@ class ModeloV11Fallback:
             print(f"⚠️ Error cargando componentes reales: {e}")
             print("📋 Usando componentes backup")
             return True  # Backup ya está listo
+
     
     def predict_symptoms(self, symptoms_text, age=None, gender=None):
         """Predicción de síntomas con manejo robusto"""
