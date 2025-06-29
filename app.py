@@ -82,11 +82,19 @@ def health():
     }
 
 if __name__ == "__main__":
-    # ¡CRÍTICO! Usar puerto dinámico de Render
+    # ¡CRÍTICO! Puerto dinámico de Render
     port = int(os.environ.get('PORT', 10000))
     host = '0.0.0.0'
     
     print(f"🚀 Servidor SaludIA iniciando en {host}:{port}")
     print(f"🌐 Puerto Render detectado: {port}")
+    print(f"📡 Escuchando en todas las interfaces: {host}")
     
-    app.run(host=host, port=port, debug=False)
+    # ASEGURAR QUE FLASK ESCUCHE CORRECTAMENTE
+    app.run(
+        host=host, 
+        port=port, 
+        debug=False,
+        threaded=True,
+        use_reloader=False
+    )

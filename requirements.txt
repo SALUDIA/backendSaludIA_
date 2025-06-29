@@ -13,14 +13,16 @@ joblib==1.5.1
 
 # === NLP AVANZADO (para modelo v11) ===
 nltk==3.9.1
-sentence-transformers==4.1.0
-torch==2.7.1
-transformers==4.53.0
-tokenizers==0.21.2
-huggingface-hub==0.33.1
+# === PYTORCH LIGERO ===
+torch==2.0.1
+
+# === TRANSFORMERS LIGEROS (CRÍTICO) ===
+transformers==4.21.3
+tokenizers==0.13.3
+sentence-transformers==2.2.2
+huggingface-hub==0.16.4
 
 # === TRADUCCIONES ===
-googletrans==4.0.0rc1
 deep-translator==1.11.4
 
 # === DATABASE ===
