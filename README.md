@@ -416,7 +416,7 @@ Memoria RAM:         ~512MB por worker
 - ![Pandas](https://img.shields.io/badge/Pandas-150458?style=flat-square&logo=pandas&logoColor=white) **Pandas** - Manipulación de datos
 
 ### 📱 **Frontend**
-- ![React Native](https://img.shields.io/badge/React_Native-20232A?style=flat-square&logo=react&logoColor=61DAFB) **React Native** - Framework móvil
+- ![Angular](https://img.shields.io/badge/Angular-DD0031?style=for-the-badge&logo=angular&logoColor=white) **Angular 19** - Framework desarrollo web
 - ![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=flat-square&logo=typescript&logoColor=white) **TypeScript** - Lenguaje tipado
 - ![Expo](https://img.shields.io/badge/Expo-000020?style=flat-square&logo=expo&logoColor=white) **Expo** - Herramientas de desarrollo
 
@@ -559,7 +559,7 @@ Este proyecto está bajo la licencia **MIT License**. Ver [LICENSE](LICENSE) par
 ```
 MIT License
 
-Copyright (c) 2024 SaludIA Project
+Copyright (c) 2025 SaludIA Project
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -589,7 +589,7 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 ---
 
 <div align="center">
-  <h3>🏥 Construido con ❤️ para mejorar la salud global</h3>
+  <h3>🏥 Construido con ❤️ para mejorar la salud global. By PoPacket & IzpoDev</h3>
   <p><em>SaludIA - Donde la inteligencia artificial encuentra la medicina</em></p>
   
   <img src="https://img.shields.io/github/stars/tuusuario/SaludIA?style=social" alt="GitHub stars">
